@@ -4,7 +4,7 @@ Tags: email verification, double opt-in, woocommerce, registration, email confir
 Requires at least: 5.0
 Tested up to: 6.4
 Requires PHP: 7.4
-Stable tag: 1.1.0
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -105,6 +105,12 @@ Yes, the plugin implements multiple security measures including cryptographicall
 5. System status and requirements
 
 == Changelog ==
+
+= 1.2.0 =
+* Added WordPress auto-update support (Enable/Disable auto-updates toggle)
+* Added "Check for updates" link in plugin row meta
+* Improved GitHub updater with better WordPress integration
+* Fixed auto-update toggle display for non-WordPress.org plugins
 
 = 1.1.0 =
 * Added System Status tab showing PHP, WordPress, and WooCommerce version requirements
