@@ -180,6 +180,10 @@ class JEDO_Admin {
                         <span class="dashicons dashicons-chart-bar"></span>
                         <?php esc_html_e('Statistics', 'jezweb-email-double-optin'); ?>
                     </button>
+                    <button class="jedo-tab" data-tab="system">
+                        <span class="dashicons dashicons-info-outline"></span>
+                        <?php esc_html_e('System Status', 'jezweb-email-double-optin'); ?>
+                    </button>
                 </div>
 
                 <div class="jedo-tab-content">
@@ -498,6 +502,141 @@ class JEDO_Admin {
                                         <!-- Populated via AJAX -->
                                     </tbody>
                                 </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- System Status Tab -->
+                    <div class="jedo-tab-pane" id="tab-system">
+                        <?php $system_status = Jezweb_Email_Double_Optin::get_system_status(); ?>
+                        <div class="jedo-card">
+                            <div class="jedo-card-header">
+                                <h2><?php esc_html_e('System Requirements', 'jezweb-email-double-optin'); ?></h2>
+                            </div>
+                            <div class="jedo-card-body">
+                                <table class="jedo-table">
+                                    <thead>
+                                        <tr>
+                                            <th><?php esc_html_e('Requirement', 'jezweb-email-double-optin'); ?></th>
+                                            <th><?php esc_html_e('Required', 'jezweb-email-double-optin'); ?></th>
+                                            <th><?php esc_html_e('Current', 'jezweb-email-double-optin'); ?></th>
+                                            <th><?php esc_html_e('Status', 'jezweb-email-double-optin'); ?></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td><strong><?php esc_html_e('PHP Version', 'jezweb-email-double-optin'); ?></strong></td>
+                                            <td><?php echo esc_html($system_status['php']['required']); ?>+</td>
+                                            <td><?php echo esc_html($system_status['php']['current']); ?></td>
+                                            <td>
+                                                <?php if ($system_status['php']['status']) : ?>
+                                                    <span class="jedo-status-verified"><?php esc_html_e('OK', 'jezweb-email-double-optin'); ?></span>
+                                                <?php else : ?>
+                                                    <span class="jedo-status-pending"><?php esc_html_e('Update Required', 'jezweb-email-double-optin'); ?></span>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong><?php esc_html_e('WordPress Version', 'jezweb-email-double-optin'); ?></strong></td>
+                                            <td><?php echo esc_html($system_status['wordpress']['required']); ?>+</td>
+                                            <td><?php echo esc_html($system_status['wordpress']['current']); ?></td>
+                                            <td>
+                                                <?php if ($system_status['wordpress']['status']) : ?>
+                                                    <span class="jedo-status-verified"><?php esc_html_e('OK', 'jezweb-email-double-optin'); ?></span>
+                                                <?php else : ?>
+                                                    <span class="jedo-status-pending"><?php esc_html_e('Update Required', 'jezweb-email-double-optin'); ?></span>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong><?php esc_html_e('WooCommerce Version', 'jezweb-email-double-optin'); ?></strong></td>
+                                            <td><?php echo esc_html($system_status['woocommerce']['required']); ?>+ <?php esc_html_e('(optional)', 'jezweb-email-double-optin'); ?></td>
+                                            <td>
+                                                <?php if ($system_status['woocommerce']['installed']) : ?>
+                                                    <?php echo esc_html($system_status['woocommerce']['current']); ?>
+                                                <?php else : ?>
+                                                    <?php esc_html_e('Not Installed', 'jezweb-email-double-optin'); ?>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td>
+                                                <?php if (!$system_status['woocommerce']['installed']) : ?>
+                                                    <span class="jedo-badge jedo-badge-warning"><?php esc_html_e('Optional', 'jezweb-email-double-optin'); ?></span>
+                                                <?php elseif ($system_status['woocommerce']['status']) : ?>
+                                                    <span class="jedo-status-verified"><?php esc_html_e('OK', 'jezweb-email-double-optin'); ?></span>
+                                                <?php else : ?>
+                                                    <span class="jedo-status-pending"><?php esc_html_e('Update Required', 'jezweb-email-double-optin'); ?></span>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong><?php esc_html_e('SSL Certificate', 'jezweb-email-double-optin'); ?></strong></td>
+                                            <td><?php esc_html_e('Recommended', 'jezweb-email-double-optin'); ?></td>
+                                            <td>
+                                                <?php if ($system_status['ssl']['status']) : ?>
+                                                    <?php esc_html_e('Active', 'jezweb-email-double-optin'); ?>
+                                                <?php else : ?>
+                                                    <?php esc_html_e('Not Active', 'jezweb-email-double-optin'); ?>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td>
+                                                <?php if ($system_status['ssl']['status']) : ?>
+                                                    <span class="jedo-status-verified"><?php esc_html_e('OK', 'jezweb-email-double-optin'); ?></span>
+                                                <?php else : ?>
+                                                    <span class="jedo-badge jedo-badge-warning"><?php esc_html_e('Recommended', 'jezweb-email-double-optin'); ?></span>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="jedo-card">
+                            <div class="jedo-card-header">
+                                <h2><?php esc_html_e('Plugin Information', 'jezweb-email-double-optin'); ?></h2>
+                            </div>
+                            <div class="jedo-card-body">
+                                <table class="jedo-table">
+                                    <tbody>
+                                        <tr>
+                                            <td><strong><?php esc_html_e('Plugin Version', 'jezweb-email-double-optin'); ?></strong></td>
+                                            <td><?php echo esc_html(JEDO_VERSION); ?></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong><?php esc_html_e('Author', 'jezweb-email-double-optin'); ?></strong></td>
+                                            <td>Jezweb</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong><?php esc_html_e('Developer', 'jezweb-email-double-optin'); ?></strong></td>
+                                            <td>Mahmud Farooque</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong><?php esc_html_e('License', 'jezweb-email-double-optin'); ?></strong></td>
+                                            <td>GPL v2 or later</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong><?php esc_html_e('GitHub Repository', 'jezweb-email-double-optin'); ?></strong></td>
+                                            <td><a href="https://github.com/mmhfarooque/jezweb-email-double-optin" target="_blank" rel="noopener noreferrer">mmhfarooque/jezweb-email-double-optin</a></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="jedo-card">
+                            <div class="jedo-card-header">
+                                <h2><?php esc_html_e('Security Features', 'jezweb-email-double-optin'); ?></h2>
+                            </div>
+                            <div class="jedo-card-body">
+                                <ul style="margin: 0; padding-left: 20px; line-height: 2;">
+                                    <li><?php esc_html_e('Cryptographically secure verification tokens (256-bit)', 'jezweb-email-double-optin'); ?></li>
+                                    <li><?php esc_html_e('Rate limiting on verification email resends (max 5/hour)', 'jezweb-email-double-optin'); ?></li>
+                                    <li><?php esc_html_e('CSRF protection with WordPress nonces', 'jezweb-email-double-optin'); ?></li>
+                                    <li><?php esc_html_e('Input sanitization and output escaping', 'jezweb-email-double-optin'); ?></li>
+                                    <li><?php esc_html_e('Prepared SQL statements to prevent injection', 'jezweb-email-double-optin'); ?></li>
+                                    <li><?php esc_html_e('Capability checks for admin functions', 'jezweb-email-double-optin'); ?></li>
+                                    <li><?php esc_html_e('Token expiration and cleanup', 'jezweb-email-double-optin'); ?></li>
+                                </ul>
                             </div>
                         </div>
                     </div>

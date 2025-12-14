@@ -4,7 +4,7 @@ Tags: email verification, double opt-in, woocommerce, registration, email confir
 Requires at least: 5.0
 Tested up to: 6.4
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -25,6 +25,23 @@ Jezweb Email Double Opt-in adds email verification to your WordPress and WooComm
 * **Statistics Dashboard** - View verification rates and recent user activity
 * **Resend Functionality** - Users can request new verification emails
 * **Auto-cleanup** - Optionally delete unverified users after a specified period
+* **System Status Page** - View PHP, WordPress, and WooCommerce version requirements
+
+= Security Features =
+
+* Cryptographically secure verification tokens (256-bit)
+* Rate limiting on verification email resends (max 5 per hour)
+* CSRF protection with WordPress nonces
+* Input sanitization and output escaping
+* Prepared SQL statements to prevent injection
+* Capability checks for admin functions
+* Token expiration and automatic cleanup
+
+= Requirements =
+
+* PHP 7.4 or higher
+* WordPress 5.0 or higher
+* WooCommerce 5.0 or higher (optional, for WooCommerce features)
 
 = SMTP Compatibility =
 
@@ -75,14 +92,27 @@ You can optionally set the plugin to automatically delete unverified users after
 
 The plugin checks GitHub for new releases. When a new version is available, you'll see an update notification in your WordPress plugins page, and you can update with one click.
 
+= Is this plugin secure? =
+
+Yes, the plugin implements multiple security measures including cryptographically secure tokens, rate limiting, CSRF protection, input sanitization, and SQL injection prevention.
+
 == Screenshots ==
 
 1. Modern admin dashboard with toggle switches
 2. Email template customization
 3. User messages configuration
 4. Statistics and recent verifications
+5. System status and requirements
 
 == Changelog ==
+
+= 1.1.0 =
+* Added System Status tab showing PHP, WordPress, and WooCommerce version requirements
+* Added rate limiting for verification email resends (security enhancement)
+* Enhanced token validation with format checking
+* Improved security with proper nonce handling
+* Added security features display in admin panel
+* Code improvements for WordPress coding standards
 
 = 1.0.0 =
 * Initial release
@@ -95,6 +125,9 @@ The plugin checks GitHub for new releases. When a new version is available, you'
 * Statistics dashboard
 
 == Upgrade Notice ==
+
+= 1.1.0 =
+Security enhancement release with rate limiting, improved token validation, and system status display.
 
 = 1.0.0 =
 Initial release of Jezweb Email Double Opt-in.

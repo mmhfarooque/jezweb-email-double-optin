@@ -3,7 +3,7 @@
  * Plugin Name: Jezweb Email Double Opt-in
  * Plugin URI: https://github.com/mmhfarooque/jezweb-email-double-optin
  * Description: Email verification double opt-in system for WordPress and WooCommerce user registration with customizable email templates.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: Jezweb
  * Developer: Mahmud Farooque
  * Author URI: https://jezweb.com.au
@@ -26,11 +26,65 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('JEDO_VERSION', '1.0.0');
+define('JEDO_VERSION', '1.1.0');
+define('JEDO_MIN_PHP_VERSION', '7.4');
+define('JEDO_MIN_WP_VERSION', '5.0');
+define('JEDO_MIN_WC_VERSION', '5.0');
 define('JEDO_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('JEDO_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('JEDO_PLUGIN_BASENAME', plugin_basename(__FILE__));
 define('JEDO_PLUGIN_FILE', __FILE__);
+
+/**
+ * Check minimum requirements before loading plugin
+ */
+function jedo_check_requirements() {
+    $errors = array();
+
+    // Check PHP version
+    if (version_compare(PHP_VERSION, JEDO_MIN_PHP_VERSION, '<')) {
+        $errors[] = sprintf(
+            /* translators: 1: Current PHP version, 2: Required PHP version */
+            __('Jezweb Email Double Opt-in requires PHP version %2$s or higher. You are running PHP %1$s.', 'jezweb-email-double-optin'),
+            PHP_VERSION,
+            JEDO_MIN_PHP_VERSION
+        );
+    }
+
+    // Check WordPress version
+    global $wp_version;
+    if (version_compare($wp_version, JEDO_MIN_WP_VERSION, '<')) {
+        $errors[] = sprintf(
+            /* translators: 1: Current WordPress version, 2: Required WordPress version */
+            __('Jezweb Email Double Opt-in requires WordPress version %2$s or higher. You are running WordPress %1$s.', 'jezweb-email-double-optin'),
+            $wp_version,
+            JEDO_MIN_WP_VERSION
+        );
+    }
+
+    return $errors;
+}
+
+/**
+ * Display admin notice for requirements not met
+ */
+function jedo_requirements_notice() {
+    $errors = jedo_check_requirements();
+    if (!empty($errors)) {
+        echo '<div class="notice notice-error"><p><strong>' . esc_html__('Jezweb Email Double Opt-in', 'jezweb-email-double-optin') . '</strong></p>';
+        foreach ($errors as $error) {
+            echo '<p>' . esc_html($error) . '</p>';
+        }
+        echo '</div>';
+    }
+}
+
+// Check requirements before loading
+$jedo_errors = jedo_check_requirements();
+if (!empty($jedo_errors)) {
+    add_action('admin_notices', 'jedo_requirements_notice');
+    return;
+}
 
 /**
  * Main Plugin Class
@@ -123,6 +177,37 @@ final class Jezweb_Email_Double_Optin {
         if (class_exists('\Automattic\WooCommerce\Utilities\FeaturesUtil')) {
             \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility('custom_order_tables', JEDO_PLUGIN_FILE, true);
         }
+    }
+
+    /**
+     * Get system status for admin display
+     */
+    public static function get_system_status() {
+        global $wp_version;
+
+        $status = array(
+            'php' => array(
+                'current' => PHP_VERSION,
+                'required' => JEDO_MIN_PHP_VERSION,
+                'status' => version_compare(PHP_VERSION, JEDO_MIN_PHP_VERSION, '>='),
+            ),
+            'wordpress' => array(
+                'current' => $wp_version,
+                'required' => JEDO_MIN_WP_VERSION,
+                'status' => version_compare($wp_version, JEDO_MIN_WP_VERSION, '>='),
+            ),
+            'woocommerce' => array(
+                'installed' => class_exists('WooCommerce'),
+                'current' => class_exists('WooCommerce') ? WC()->version : 'N/A',
+                'required' => JEDO_MIN_WC_VERSION,
+                'status' => !class_exists('WooCommerce') || version_compare(WC()->version, JEDO_MIN_WC_VERSION, '>='),
+            ),
+            'ssl' => array(
+                'status' => is_ssl(),
+            ),
+        );
+
+        return $status;
     }
 }
 
