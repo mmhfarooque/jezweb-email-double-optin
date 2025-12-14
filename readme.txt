@@ -4,7 +4,7 @@ Tags: email verification, double opt-in, woocommerce, registration, email confir
 Requires at least: 5.0
 Tested up to: 6.4
 Requires PHP: 7.4
-Stable tag: 1.5.1
+Stable tag: 1.5.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -106,6 +106,14 @@ Yes, the plugin implements multiple security measures including cryptographicall
 
 == Changelog ==
 
+= 1.5.2 =
+* UX Improvement: Verification link now opens a clean "Email Verified" page
+* Users can close the verification tab and continue in their original checkout tab
+* Prevents confusing duplicate checkout tabs when verifying email
+* Beautiful animated success page with clear instructions
+* "Close This Tab" button and "Go to Checkout" fallback link
+* Original checkout tab auto-updates via existing polling mechanism
+
 = 1.5.1 =
 * Security hardening release
 * Added timing-safe token comparison using hash_equals() to prevent timing attacks
@@ -165,6 +173,9 @@ Yes, the plugin implements multiple security measures including cryptographicall
 * Statistics dashboard
 
 == Upgrade Notice ==
+
+= 1.5.2 =
+UX improvement: Verification link now opens a simple "Email Verified" page instead of another checkout tab, reducing user confusion.
 
 = 1.5.1 =
 Security hardening release. Recommended update for all users.

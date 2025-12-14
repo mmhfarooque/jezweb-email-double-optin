@@ -154,10 +154,259 @@ class JEDO_WooCommerce {
         $pending_data['verified'] = true;
         set_transient($transient_key, $pending_data, HOUR_IN_SECONDS);
 
-        // Redirect to checkout with success message
-        $redirect_url = add_query_arg('jedo_email_verified', '1', wc_get_checkout_url());
-        wp_safe_redirect($redirect_url);
+        // Show a simple "verified" page instead of redirecting to checkout
+        // This prevents having two checkout tabs open
+        $this->display_verification_success_page($email);
         exit;
+    }
+
+    /**
+     * Display a simple verification success page
+     * User can close this tab and continue in the original checkout tab
+     *
+     * @param string $email The verified email address.
+     */
+    private function display_verification_success_page($email) {
+        $site_name = get_bloginfo('name');
+        $checkout_url = wc_get_checkout_url();
+
+        // Get theme colors
+        $button_color = get_option('jedo_email_button_color', '#0073aa');
+
+        ?>
+        <!DOCTYPE html>
+        <html <?php language_attributes(); ?>>
+        <head>
+            <meta charset="<?php bloginfo('charset'); ?>">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title><?php echo esc_html__('Email Verified', 'jezweb-email-double-optin') . ' - ' . esc_html($site_name); ?></title>
+            <style>
+                * {
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                }
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    min-height: 100vh;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 20px;
+                }
+                .verification-container {
+                    background: #ffffff;
+                    border-radius: 16px;
+                    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                    padding: 50px 40px;
+                    text-align: center;
+                    max-width: 450px;
+                    width: 100%;
+                    animation: slideUp 0.5s ease-out;
+                }
+                @keyframes slideUp {
+                    from {
+                        opacity: 0;
+                        transform: translateY(30px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+                .success-icon {
+                    width: 80px;
+                    height: 80px;
+                    background: #d4edda;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    margin: 0 auto 25px;
+                    animation: scaleIn 0.5s ease-out 0.2s both;
+                }
+                @keyframes scaleIn {
+                    from {
+                        transform: scale(0);
+                    }
+                    to {
+                        transform: scale(1);
+                    }
+                }
+                .success-icon svg {
+                    width: 40px;
+                    height: 40px;
+                    color: #28a745;
+                }
+                .checkmark {
+                    stroke: #28a745;
+                    stroke-width: 3;
+                    stroke-linecap: round;
+                    stroke-linejoin: round;
+                    fill: none;
+                    animation: checkmark 0.5s ease-out 0.5s both;
+                }
+                @keyframes checkmark {
+                    from {
+                        stroke-dasharray: 100;
+                        stroke-dashoffset: 100;
+                    }
+                    to {
+                        stroke-dashoffset: 0;
+                    }
+                }
+                h1 {
+                    color: #28a745;
+                    font-size: 28px;
+                    margin-bottom: 15px;
+                    font-weight: 600;
+                }
+                .email-text {
+                    color: #666;
+                    font-size: 16px;
+                    margin-bottom: 10px;
+                }
+                .email-address {
+                    color: #333;
+                    font-weight: 600;
+                    font-size: 18px;
+                    margin-bottom: 25px;
+                    word-break: break-all;
+                }
+                .instruction-box {
+                    background: #f8f9fa;
+                    border-radius: 10px;
+                    padding: 20px;
+                    margin-bottom: 25px;
+                }
+                .instruction-box p {
+                    color: #555;
+                    font-size: 15px;
+                    line-height: 1.6;
+                    margin: 0;
+                }
+                .instruction-box strong {
+                    color: #333;
+                }
+                .close-hint {
+                    background: #e3f2fd;
+                    border: 1px solid #90caf9;
+                    border-radius: 8px;
+                    padding: 15px;
+                    margin-bottom: 25px;
+                }
+                .close-hint p {
+                    color: #1565c0;
+                    font-size: 14px;
+                    margin: 0;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 8px;
+                }
+                .btn-close-tab {
+                    display: inline-block;
+                    background: <?php echo esc_attr($button_color); ?>;
+                    color: #ffffff;
+                    padding: 14px 35px;
+                    font-size: 16px;
+                    font-weight: 600;
+                    text-decoration: none;
+                    border-radius: 8px;
+                    border: none;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    margin-right: 10px;
+                }
+                .btn-close-tab:hover {
+                    opacity: 0.9;
+                    transform: translateY(-2px);
+                    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+                }
+                .btn-secondary {
+                    display: inline-block;
+                    background: transparent;
+                    color: #666;
+                    padding: 14px 25px;
+                    font-size: 14px;
+                    text-decoration: none;
+                    border-radius: 8px;
+                    border: 1px solid #ddd;
+                    transition: all 0.3s ease;
+                }
+                .btn-secondary:hover {
+                    background: #f5f5f5;
+                    color: #333;
+                }
+                .site-name {
+                    color: #999;
+                    font-size: 13px;
+                    margin-top: 30px;
+                }
+                .buttons-row {
+                    display: flex;
+                    gap: 10px;
+                    justify-content: center;
+                    flex-wrap: wrap;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="verification-container">
+                <div class="success-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path class="checkmark" d="M5 13l4 4L19 7"/>
+                    </svg>
+                </div>
+
+                <h1><?php esc_html_e('Email Verified!', 'jezweb-email-double-optin'); ?></h1>
+
+                <p class="email-text"><?php esc_html_e('Successfully verified:', 'jezweb-email-double-optin'); ?></p>
+                <p class="email-address"><?php echo esc_html($email); ?></p>
+
+                <div class="instruction-box">
+                    <p>
+                        <?php esc_html_e('Your email has been verified successfully. You can now complete your order.', 'jezweb-email-double-optin'); ?>
+                    </p>
+                </div>
+
+                <div class="close-hint">
+                    <p>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                        </svg>
+                        <strong><?php esc_html_e('Go back to your checkout tab', 'jezweb-email-double-optin'); ?></strong> - <?php esc_html_e('it will automatically update.', 'jezweb-email-double-optin'); ?>
+                    </p>
+                </div>
+
+                <div class="buttons-row">
+                    <button type="button" class="btn-close-tab" onclick="window.close();">
+                        <?php esc_html_e('Close This Tab', 'jezweb-email-double-optin'); ?>
+                    </button>
+                    <a href="<?php echo esc_url($checkout_url); ?>" class="btn-secondary">
+                        <?php esc_html_e('Go to Checkout', 'jezweb-email-double-optin'); ?>
+                    </a>
+                </div>
+
+                <p class="site-name"><?php echo esc_html($site_name); ?></p>
+            </div>
+
+            <script>
+                // Try to close the tab after a delay if opened via JavaScript
+                // This won't work if the tab wasn't opened by JS, but we provide the button as fallback
+                setTimeout(function() {
+                    // Focus the original window if possible
+                    if (window.opener && !window.opener.closed) {
+                        window.opener.focus();
+                    }
+                }, 1000);
+            </script>
+        </body>
+        </html>
+        <?php
     }
 
     /**
