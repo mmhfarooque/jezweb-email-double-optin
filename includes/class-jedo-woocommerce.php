@@ -62,7 +62,12 @@ class JEDO_WooCommerce {
         add_filter('woocommerce_process_login_errors', array($this, 'check_login_verification'), 10, 3);
 
         // CRITICAL: Intercept checkout to create user first and block order if unverified
+        // Classic checkout hook
         add_action('woocommerce_after_checkout_validation', array($this, 'intercept_checkout_for_verification'), 10, 2);
+
+        // WooCommerce Blocks checkout hooks
+        add_action('woocommerce_store_api_checkout_update_order_from_request', array($this, 'blocks_checkout_validation'), 10, 2);
+        add_action('woocommerce_blocks_checkout_update_order_from_request', array($this, 'blocks_checkout_validation'), 10, 2);
 
         // Prevent order processing for unverified users
         add_filter('woocommerce_order_is_pending_statuses', array($this, 'add_verification_pending_status'));
@@ -73,7 +78,7 @@ class JEDO_WooCommerce {
         // Registration form notice
         add_action('woocommerce_register_form_end', array($this, 'add_registration_notice'));
 
-        // Show verification notice on checkout page
+        // Show verification notice on checkout page (classic)
         add_action('woocommerce_before_checkout_form', array($this, 'checkout_verification_notice'), 5);
 
         // Add verification status to my account
@@ -97,12 +102,18 @@ class JEDO_WooCommerce {
         // Email notification for verification pending
         add_action('woocommerce_order_status_verification-pending', array($this, 'send_verification_pending_email'), 10, 2);
 
-        // Add refresh check script for verified status
+        // Add refresh check script for verified status (classic checkout)
         add_action('woocommerce_after_checkout_form', array($this, 'add_verification_check_script'));
 
         // AJAX handler to check verification status
         add_action('wp_ajax_jedo_check_verification_status', array($this, 'ajax_check_verification_status'));
         add_action('wp_ajax_nopriv_jedo_check_verification_status', array($this, 'ajax_check_verification_status'));
+
+        // WooCommerce Blocks integration
+        add_action('woocommerce_blocks_loaded', array($this, 'register_blocks_integration'));
+
+        // Add script to checkout block page
+        add_action('wp_enqueue_scripts', array($this, 'enqueue_blocks_checkout_script'));
     }
 
     /**
@@ -770,6 +781,344 @@ class JEDO_WooCommerce {
         $user = get_userdata($user_id);
         if ($user) {
             JEDO_Email::get_instance()->send_verification_email($user_id, $user->user_email, 'order_verification');
+        }
+    }
+
+    /**
+     * WooCommerce Blocks checkout validation
+     * This runs when order is being processed through the Store API (Blocks checkout)
+     *
+     * @param WC_Order        $order   The order being processed.
+     * @param WP_REST_Request $request The REST request.
+     */
+    public function blocks_checkout_validation($order, $request) {
+        // Get user ID from order
+        $user_id = $order->get_customer_id();
+
+        // If no user (guest checkout not allowed but somehow got through), skip
+        if (!$user_id) {
+            // Check if we need to create a user from the request
+            $create_account = false;
+            $request_data = $request->get_json_params();
+
+            if (isset($request_data['create_account']) && $request_data['create_account']) {
+                $create_account = true;
+            }
+
+            // If creating account and no user yet, the user will be created by WooCommerce
+            // We need to check after user creation
+            if ($create_account) {
+                // Store flag to check after user creation
+                $order->update_meta_data('_jedo_needs_verification_check', 'yes');
+                $order->save();
+            }
+            return;
+        }
+
+        // Skip administrators
+        if (user_can($user_id, 'manage_options')) {
+            return;
+        }
+
+        $verified = get_user_meta($user_id, 'jedo_email_verified', true);
+
+        if ($verified !== 'yes') {
+            // User is not verified - throw exception to block order
+            $this->throw_blocks_checkout_error(
+                __('Email verification required. Please verify your email address before placing an order. Check your inbox for the verification email.', 'jezweb-email-double-optin')
+            );
+        }
+    }
+
+    /**
+     * Throw an error for blocks checkout
+     *
+     * @param string $message Error message.
+     */
+    private function throw_blocks_checkout_error($message) {
+        // Check if RouteException class exists (WooCommerce Blocks)
+        if (class_exists('Automattic\WooCommerce\StoreApi\Exceptions\RouteException')) {
+            throw new \Automattic\WooCommerce\StoreApi\Exceptions\RouteException(
+                'jedo_email_verification_required',
+                $message,
+                400
+            );
+        }
+
+        // Fallback for older versions
+        throw new \Exception($message);
+    }
+
+    /**
+     * Register WooCommerce Blocks integration
+     */
+    public function register_blocks_integration() {
+        if (!class_exists('Automattic\WooCommerce\Blocks\Integrations\IntegrationInterface')) {
+            return;
+        }
+
+        // Register the integration
+        add_action(
+            'woocommerce_blocks_checkout_block_registration',
+            function($integration_registry) {
+                $integration_registry->register(new JEDO_Blocks_Integration());
+            }
+        );
+    }
+
+    /**
+     * Enqueue scripts for blocks checkout
+     */
+    public function enqueue_blocks_checkout_script() {
+        // Only on checkout page
+        if (!is_checkout()) {
+            return;
+        }
+
+        // Check if blocks checkout is being used
+        if (!$this->is_blocks_checkout()) {
+            return;
+        }
+
+        if (!is_user_logged_in()) {
+            return;
+        }
+
+        $user_id = get_current_user_id();
+
+        // Skip if admin or already verified
+        if (user_can($user_id, 'manage_options')) {
+            return;
+        }
+
+        $verified = get_user_meta($user_id, 'jedo_email_verified', true);
+
+        if ($verified === 'yes') {
+            return;
+        }
+
+        // Add inline script for verification check
+        wp_add_inline_script('wc-checkout', $this->get_blocks_verification_script($user_id));
+
+        // Also enqueue our custom style for the notice
+        wp_add_inline_style('wc-blocks-style', $this->get_blocks_verification_styles());
+    }
+
+    /**
+     * Check if blocks checkout is being used
+     *
+     * @return bool
+     */
+    private function is_blocks_checkout() {
+        // Check if the checkout page contains the checkout block
+        global $post;
+
+        if (!$post) {
+            return false;
+        }
+
+        // Check for Gutenberg blocks in content
+        if (has_block('woocommerce/checkout', $post)) {
+            return true;
+        }
+
+        // Check if WooCommerce Blocks is handling checkout
+        if (class_exists('Automattic\WooCommerce\Blocks\Package') &&
+            method_exists('Automattic\WooCommerce\Blocks\Package', 'feature_flags')) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Get JavaScript for blocks checkout verification
+     *
+     * @param int $user_id User ID.
+     * @return string JavaScript code.
+     */
+    private function get_blocks_verification_script($user_id) {
+        $ajax_url = admin_url('admin-ajax.php');
+        $nonce = wp_create_nonce('jedo_check_verification');
+        $resend_url = add_query_arg(array(
+            'action' => 'jedo_resend_checkout',
+            'user_id' => $user_id,
+            'nonce' => wp_create_nonce('jedo_resend_checkout_' . $user_id)
+        ), wc_get_checkout_url());
+
+        return "
+        (function() {
+            'use strict';
+
+            // Add verification notice to blocks checkout
+            function addVerificationNotice() {
+                var checkoutForm = document.querySelector('.wc-block-checkout');
+                if (!checkoutForm) {
+                    setTimeout(addVerificationNotice, 500);
+                    return;
+                }
+
+                // Check if notice already exists
+                if (document.querySelector('.jedo-blocks-verification-notice')) {
+                    return;
+                }
+
+                var notice = document.createElement('div');
+                notice.className = 'jedo-blocks-verification-notice';
+                notice.innerHTML = '<div class=\"jedo-notice-content\">' +
+                    '<h4><span class=\"dashicons dashicons-warning\"></span> " . esc_js(__('Email Verification Required', 'jezweb-email-double-optin')) . "</h4>' +
+                    '<p>" . esc_js(__('You must verify your email address before placing an order. Please check your inbox for the verification email and click the link.', 'jezweb-email-double-optin')) . "</p>' +
+                    '<p><a href=\"" . esc_js($resend_url) . "\" class=\"jedo-resend-btn\">" . esc_js(__('Resend Verification Email', 'jezweb-email-double-optin')) . "</a></p>' +
+                    '<p class=\"jedo-auto-refresh\"><small>" . esc_js(__('This page will automatically update when you verify your email.', 'jezweb-email-double-optin')) . "</small></p>' +
+                    '</div>';
+
+                checkoutForm.parentNode.insertBefore(notice, checkoutForm);
+            }
+
+            // Check verification status
+            function checkVerificationStatus() {
+                var xhr = new XMLHttpRequest();
+                xhr.open('POST', '" . esc_js($ajax_url) . "', true);
+                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState === 4 && xhr.status === 200) {
+                        try {
+                            var response = JSON.parse(xhr.responseText);
+                            if (response.success && response.data.verified) {
+                                // Email verified - reload page
+                                var notice = document.querySelector('.jedo-blocks-verification-notice');
+                                if (notice) {
+                                    notice.innerHTML = '<div class=\"jedo-notice-success\"><p><strong>✓ " . esc_js(__('Email Verified!', 'jezweb-email-double-optin')) . "</strong> " . esc_js(__('Refreshing page...', 'jezweb-email-double-optin')) . "</p></div>';
+                                }
+                                setTimeout(function() {
+                                    location.reload();
+                                }, 1500);
+                                return;
+                            }
+                        } catch (e) {}
+                    }
+                };
+                xhr.send('action=jedo_check_verification_status&user_id=" . intval($user_id) . "&nonce=" . esc_js($nonce) . "');
+            }
+
+            // Initialize
+            document.addEventListener('DOMContentLoaded', function() {
+                addVerificationNotice();
+                // Check verification status every 5 seconds
+                setInterval(checkVerificationStatus, 5000);
+            });
+
+            // Also run immediately in case DOM is already loaded
+            if (document.readyState !== 'loading') {
+                addVerificationNotice();
+                setInterval(checkVerificationStatus, 5000);
+            }
+        })();
+        ";
+    }
+
+    /**
+     * Get CSS styles for blocks checkout verification notice
+     *
+     * @return string CSS code.
+     */
+    private function get_blocks_verification_styles() {
+        return "
+        .jedo-blocks-verification-notice {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-left: 4px solid #ffc107;
+            border-radius: 4px;
+            padding: 20px;
+            margin-bottom: 20px;
+            color: #856404;
+        }
+        .jedo-blocks-verification-notice h4 {
+            margin: 0 0 10px 0;
+            color: #856404;
+            font-size: 16px;
+        }
+        .jedo-blocks-verification-notice h4 .dashicons {
+            margin-right: 8px;
+        }
+        .jedo-blocks-verification-notice p {
+            margin: 10px 0;
+        }
+        .jedo-blocks-verification-notice .jedo-resend-btn {
+            display: inline-block;
+            background: #856404;
+            color: #fff;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        .jedo-blocks-verification-notice .jedo-resend-btn:hover {
+            background: #6d5303;
+            color: #fff;
+        }
+        .jedo-blocks-verification-notice .jedo-auto-refresh {
+            color: #666;
+        }
+        .jedo-notice-success {
+            background: #d4edda;
+            border-color: #28a745;
+            color: #155724;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        ";
+    }
+}
+
+/**
+ * WooCommerce Blocks Integration Class
+ */
+if (class_exists('Automattic\WooCommerce\Blocks\Integrations\IntegrationInterface')) {
+    class JEDO_Blocks_Integration implements \Automattic\WooCommerce\Blocks\Integrations\IntegrationInterface {
+        /**
+         * Get the name of the integration.
+         *
+         * @return string
+         */
+        public function get_name() {
+            return 'jedo-email-verification';
+        }
+
+        /**
+         * Initialize the integration.
+         */
+        public function initialize() {
+            // Scripts and data are handled by the main class
+        }
+
+        /**
+         * Get script handles.
+         *
+         * @return array
+         */
+        public function get_script_handles() {
+            return array();
+        }
+
+        /**
+         * Get editor script handles.
+         *
+         * @return array
+         */
+        public function get_editor_script_handles() {
+            return array();
+        }
+
+        /**
+         * Get script data.
+         *
+         * @return array
+         */
+        public function get_script_data() {
+            return array(
+                'isVerified' => is_user_logged_in() ? get_user_meta(get_current_user_id(), 'jedo_email_verified', true) === 'yes' : true,
+            );
         }
     }
 }
