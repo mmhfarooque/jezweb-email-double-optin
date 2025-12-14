@@ -1,0 +1,631 @@
+/**
+ * Jezweb Email Double Opt-in Admin Styles
+ */
+
+/* Reset and base styles */
+.jedo-admin-wrap {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+    background: #f0f0f1;
+    min-height: 100vh;
+    margin-left: -20px;
+}
+
+.jedo-admin-wrap * {
+    box-sizing: border-box;
+}
+
+/* Header */
+.jedo-admin-header {
+    background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);
+    padding: 25px 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.jedo-header-content h1 {
+    margin: 0;
+    color: #fff;
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.jedo-version {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 13px;
+    margin-top: 5px;
+    display: block;
+}
+
+/* Buttons */
+.jedo-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+    text-decoration: none;
+}
+
+.jedo-btn .dashicons {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+}
+
+.jedo-btn-primary {
+    background: #fff;
+    color: #1e3a5f;
+}
+
+.jedo-btn-primary:hover {
+    background: #f0f6fc;
+    transform: translateY(-1px);
+}
+
+.jedo-btn-secondary {
+    background: #e5e7eb;
+    color: #374151;
+}
+
+.jedo-btn-secondary:hover {
+    background: #d1d5db;
+}
+
+/* Content area */
+.jedo-admin-content {
+    padding: 30px;
+    max-width: 1200px;
+}
+
+/* Tabs */
+.jedo-tabs {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 25px;
+    background: #fff;
+    padding: 6px;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.jedo-tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    border: none;
+    background: transparent;
+    color: #6b7280;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.jedo-tab .dashicons {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+}
+
+.jedo-tab:hover {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+.jedo-tab.active {
+    background: #1e3a5f;
+    color: #fff;
+}
+
+/* Tab panes */
+.jedo-tab-pane {
+    display: none;
+}
+
+.jedo-tab-pane.active {
+    display: block;
+}
+
+/* Cards */
+.jedo-card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    margin-bottom: 25px;
+    overflow: hidden;
+}
+
+.jedo-card-header {
+    padding: 20px 25px;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.jedo-card-header h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.jedo-card-body {
+    padding: 25px;
+}
+
+/* Settings rows */
+.jedo-setting-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 20px 0;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.jedo-setting-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.jedo-setting-row:first-child {
+    padding-top: 0;
+}
+
+.jedo-setting-label {
+    flex: 1;
+    padding-right: 30px;
+}
+
+.jedo-setting-label label {
+    font-weight: 600;
+    color: #1f2937;
+    font-size: 14px;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.jedo-setting-desc {
+    margin: 0;
+    color: #6b7280;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.jedo-setting-control {
+    flex-shrink: 0;
+    min-width: 300px;
+}
+
+.jedo-setting-control.jedo-full-width {
+    flex: 1;
+    min-width: auto;
+}
+
+/* Switch toggle */
+.jedo-switch {
+    position: relative;
+    display: inline-block;
+    width: 52px;
+    height: 28px;
+}
+
+.jedo-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.jedo-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #d1d5db;
+    transition: 0.3s;
+    border-radius: 28px;
+}
+
+.jedo-slider:before {
+    position: absolute;
+    content: "";
+    height: 22px;
+    width: 22px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.jedo-switch input:checked + .jedo-slider {
+    background-color: #10b981;
+}
+
+.jedo-switch input:checked + .jedo-slider:before {
+    transform: translateX(24px);
+}
+
+.jedo-switch input:disabled + .jedo-slider {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Inputs */
+.jedo-input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #1f2937;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.jedo-input:focus {
+    outline: none;
+    border-color: #1e3a5f;
+    box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.1);
+}
+
+.jedo-input-small {
+    width: 100px;
+}
+
+.jedo-textarea {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #1f2937;
+    resize: vertical;
+    min-height: 80px;
+    font-family: inherit;
+    line-height: 1.5;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.jedo-textarea:focus {
+    outline: none;
+    border-color: #1e3a5f;
+    box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.1);
+}
+
+/* Color picker */
+.jedo-color-picker {
+    width: 100px !important;
+}
+
+/* Badges */
+.jedo-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.jedo-badge-warning {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.jedo-badge-success {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.jedo-badge-danger {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+/* Info box */
+.jedo-info-box {
+    display: flex;
+    gap: 15px;
+    padding: 20px;
+    background: #f0f6fc;
+    border-radius: 8px;
+    border-left: 4px solid #1e3a5f;
+    margin-top: 20px;
+}
+
+.jedo-info-box .dashicons {
+    color: #1e3a5f;
+    font-size: 24px;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.jedo-info-box strong {
+    display: block;
+    margin-bottom: 5px;
+    color: #1f2937;
+}
+
+.jedo-info-box p {
+    margin: 0;
+    color: #4b5563;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+/* Placeholders box */
+.jedo-placeholders-box {
+    background: #f9fafb;
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.jedo-placeholders-box h4 {
+    margin: 0 0 15px;
+    font-size: 14px;
+    color: #374151;
+}
+
+.jedo-placeholders-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 10px;
+}
+
+.jedo-placeholder-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: #fff;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+}
+
+.jedo-placeholder-item code {
+    background: #1e3a5f;
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.jedo-placeholder-item span {
+    color: #6b7280;
+    font-size: 12px;
+}
+
+/* Statistics */
+.jedo-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+    margin-bottom: 25px;
+}
+
+.jedo-stat-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 25px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.jedo-stat-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.jedo-stat-icon .dashicons {
+    font-size: 28px;
+    width: 28px;
+    height: 28px;
+    color: #fff;
+}
+
+.jedo-stat-icon-blue {
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+}
+
+.jedo-stat-icon-green {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.jedo-stat-icon-orange {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+.jedo-stat-icon-purple {
+    background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+}
+
+.jedo-stat-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.jedo-stat-number {
+    font-size: 28px;
+    font-weight: 700;
+    color: #1f2937;
+    line-height: 1;
+}
+
+.jedo-stat-label {
+    font-size: 13px;
+    color: #6b7280;
+    margin-top: 5px;
+}
+
+/* Table */
+.jedo-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.jedo-table th,
+.jedo-table td {
+    padding: 14px 16px;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.jedo-table th {
+    background: #f9fafb;
+    font-weight: 600;
+    color: #374151;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.jedo-table td {
+    color: #4b5563;
+    font-size: 14px;
+}
+
+.jedo-table tr:last-child td {
+    border-bottom: none;
+}
+
+.jedo-table tr:hover td {
+    background: #f9fafb;
+}
+
+/* Status badges in table */
+.jedo-status-verified {
+    display: inline-block;
+    padding: 4px 12px;
+    background: #d1fae5;
+    color: #065f46;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.jedo-status-pending {
+    display: inline-block;
+    padding: 4px 12px;
+    background: #fef3c7;
+    color: #92400e;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* Toast notification */
+.jedo-toast {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    padding: 16px 24px;
+    background: #1f2937;
+    color: #fff;
+    border-radius: 8px;
+    font-size: 14px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s ease;
+    z-index: 99999;
+}
+
+.jedo-toast.show {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.jedo-toast.success {
+    background: #10b981;
+}
+
+.jedo-toast.error {
+    background: #ef4444;
+}
+
+/* Loading spinner */
+.jedo-loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: jedo-spin 0.8s linear infinite;
+}
+
+@keyframes jedo-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .jedo-setting-row {
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .jedo-setting-control {
+        min-width: 100%;
+    }
+
+    .jedo-setting-label {
+        padding-right: 0;
+    }
+}
+
+@media (max-width: 768px) {
+    .jedo-admin-header {
+        flex-direction: column;
+        gap: 15px;
+        text-align: center;
+    }
+
+    .jedo-tabs {
+        flex-wrap: wrap;
+    }
+
+    .jedo-tab {
+        flex: 1;
+        min-width: 120px;
+        justify-content: center;
+    }
+
+    .jedo-admin-content {
+        padding: 20px;
+    }
+
+    .jedo-card-body {
+        padding: 20px;
+    }
+
+    .jedo-stats-grid {
+        grid-template-columns: 1fr;
+    }
+}

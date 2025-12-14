@@ -1,0 +1,100 @@
+=== Jezweb Email Double Opt-in ===
+Contributors: jezweb, mahmudfarooque
+Tags: email verification, double opt-in, woocommerce, registration, email confirmation
+Requires at least: 5.0
+Tested up to: 6.4
+Requires PHP: 7.4
+Stable tag: 1.0.0
+License: GPLv2 or later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
+
+Email verification double opt-in system for WordPress and WooCommerce user registration with customizable email templates.
+
+== Description ==
+
+Jezweb Email Double Opt-in adds email verification to your WordPress and WooCommerce registration process. Users must verify their email address before they can log in, ensuring you have valid email addresses for all your users.
+
+= Features =
+
+* **Double Opt-in for WordPress** - Require email verification for standard WordPress registrations
+* **WooCommerce Integration** - Verify emails for WooCommerce customer registrations
+* **Modern Admin Interface** - Clean, intuitive settings dashboard with toggle switches
+* **Customizable Email Templates** - Fully customize the verification email content, subject, and styling
+* **SMTP Compatible** - Works with WordPress default mail, SMTP2GO, FluentSMTP, and other SMTP plugins
+* **Auto-Updates from GitHub** - Automatic updates when new versions are released on GitHub
+* **Statistics Dashboard** - View verification rates and recent user activity
+* **Resend Functionality** - Users can request new verification emails
+* **Auto-cleanup** - Optionally delete unverified users after a specified period
+
+= SMTP Compatibility =
+
+This plugin is fully compatible with:
+
+* WordPress default mail (wp_mail)
+* SMTP2GO
+* FluentSMTP
+* WP Mail SMTP
+* Any other SMTP plugin that hooks into wp_mail
+
+Simply configure your preferred SMTP plugin, and verification emails will be sent through that service.
+
+= WooCommerce Features =
+
+When WooCommerce is installed and enabled:
+
+* Require verification for checkout account creation
+* Block unverified users from completing checkout
+* Show verification status on My Account dashboard
+* Handle email changes with re-verification
+
+== Installation ==
+
+1. Upload the plugin files to the `/wp-content/plugins/jezweb-email-double-optin` directory, or install the plugin through the WordPress plugins screen directly.
+2. Activate the plugin through the 'Plugins' screen in WordPress.
+3. Go to Email Opt-in in your admin menu to configure the plugin.
+
+== Frequently Asked Questions ==
+
+= Does this work with WooCommerce? =
+
+Yes! When WooCommerce is installed, additional options appear to require email verification for WooCommerce registrations.
+
+= What SMTP plugins are supported? =
+
+The plugin works with any SMTP plugin that hooks into WordPress's wp_mail function, including SMTP2GO, FluentSMTP, WP Mail SMTP, and others.
+
+= Can I customize the verification email? =
+
+Yes, you can fully customize the email subject, heading, body text, button text, button color, and footer. Placeholders are available for dynamic content like user name and site name.
+
+= What happens to unverified users? =
+
+You can optionally set the plugin to automatically delete unverified users after a specified number of days. Administrators are never deleted.
+
+= How do auto-updates work? =
+
+The plugin checks GitHub for new releases. When a new version is available, you'll see an update notification in your WordPress plugins page, and you can update with one click.
+
+== Screenshots ==
+
+1. Modern admin dashboard with toggle switches
+2. Email template customization
+3. User messages configuration
+4. Statistics and recent verifications
+
+== Changelog ==
+
+= 1.0.0 =
+* Initial release
+* WordPress registration email verification
+* WooCommerce integration
+* Customizable email templates
+* Modern admin interface
+* SMTP compatibility
+* GitHub auto-updater
+* Statistics dashboard
+
+== Upgrade Notice ==
+
+= 1.0.0 =
+Initial release of Jezweb Email Double Opt-in.
