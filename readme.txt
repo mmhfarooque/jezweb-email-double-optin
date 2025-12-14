@@ -4,7 +4,7 @@ Tags: email verification, double opt-in, woocommerce, registration, email confir
 Requires at least: 5.0
 Tested up to: 6.4
 Requires PHP: 7.4
-Stable tag: 1.5.2
+Stable tag: 1.5.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -105,6 +105,9 @@ Yes, the plugin implements multiple security measures including cryptographicall
 5. System status and requirements
 
 == Changelog ==
+
+= 1.5.3 =
+* Removed GitHub repository link from admin Plugin Information section
 
 = 1.5.2 =
 * UX Improvement: Verification link now opens a clean "Email Verified" page
