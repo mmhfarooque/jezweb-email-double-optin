@@ -614,10 +614,6 @@ class JEDO_Admin {
                                             <td><strong><?php esc_html_e('License', 'jezweb-email-double-optin'); ?></strong></td>
                                             <td>GPL v2 or later</td>
                                         </tr>
-                                        <tr>
-                                            <td><strong><?php esc_html_e('GitHub Repository', 'jezweb-email-double-optin'); ?></strong></td>
-                                            <td><a href="https://github.com/mmhfarooque/jezweb-email-double-optin" target="_blank" rel="noopener noreferrer">mmhfarooque/jezweb-email-double-optin</a></td>
-                                        </tr>
                                     </tbody>
                                 </table>
                             </div>
