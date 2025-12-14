@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: Jezweb Email Double Opt-in
- * Plugin URI: https://github.com/jezweb/jezweb-email-double-optin
+ * Plugin URI: https://github.com/mmhfarooque/jezweb-email-double-optin
  * Description: Email verification double opt-in system for WordPress and WooCommerce user registration with customizable email templates.
  * Version: 1.0.0
  * Author: Jezweb
@@ -16,7 +16,7 @@
  * WC requires at least: 5.0
  * WC tested up to: 8.4
  *
- * GitHub Plugin URI: jezweb/jezweb-email-double-optin
+ * GitHub Plugin URI: mmhfarooque/jezweb-email-double-optin
  * GitHub Branch: main
  */
 

@@ -25,7 +25,7 @@ class JEDO_GitHub_Updater {
     /**
      * GitHub username
      */
-    private $github_username = 'jezweb';
+    private $github_username = 'mmhfarooque';
 
     /**
      * GitHub repository name
