@@ -4,7 +4,7 @@ Tags: email verification, double opt-in, woocommerce, registration, email confir
 Requires at least: 5.0
 Tested up to: 6.4
 Requires PHP: 7.4
-Stable tag: 1.5.0
+Stable tag: 1.5.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -106,6 +106,13 @@ Yes, the plugin implements multiple security measures including cryptographicall
 
 == Changelog ==
 
+= 1.5.1 =
+* Security hardening release
+* Added timing-safe token comparison using hash_equals() to prevent timing attacks
+* Added rate limiting on checkout email verification (max 5 requests/hour per email)
+* Improved SQL escaping in uninstall script
+* Production-ready security audit completed
+
 = 1.5.0 =
 * NEW: Inline email verification on checkout - verify email BEFORE filling form
 * Email verification box appears immediately after entering email address
@@ -158,6 +165,9 @@ Yes, the plugin implements multiple security measures including cryptographicall
 * Statistics dashboard
 
 == Upgrade Notice ==
+
+= 1.5.1 =
+Security hardening release. Recommended update for all users.
 
 = 1.5.0 =
 Major UX improvement: Email verification now happens immediately after entering email, before filling out the rest of the checkout form.

@@ -145,7 +145,7 @@ class JEDO_WooCommerce {
         $transient_key = 'jedo_pending_checkout_' . md5($email);
         $pending_data = get_transient($transient_key);
 
-        if (!$pending_data || $pending_data['token'] !== $token) {
+        if (!$pending_data || !hash_equals($pending_data['token'], $token)) {
             wp_die(__('Invalid or expired verification link.', 'jezweb-email-double-optin'));
             return;
         }
@@ -1364,6 +1364,23 @@ class JEDO_WooCommerce {
         }
 
         $email = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
+
+        // Rate limiting - max 5 requests per email per hour
+        $rate_limit_key = 'jedo_checkout_rate_' . md5($email);
+        $rate_data = get_transient($rate_limit_key);
+
+        if ($rate_data && isset($rate_data['count']) && $rate_data['count'] >= 5) {
+            wp_send_json_error(array('message' => __('Too many verification requests. Please wait before trying again.', 'jezweb-email-double-optin')));
+            return;
+        }
+
+        // Update rate limit counter
+        if (!$rate_data) {
+            $rate_data = array('count' => 1, 'first_request' => time());
+        } else {
+            $rate_data['count']++;
+        }
+        set_transient($rate_limit_key, $rate_data, HOUR_IN_SECONDS);
 
         if (empty($email) || !is_email($email)) {
             wp_send_json_error(array('message' => __('Invalid email address.', 'jezweb-email-double-optin')));

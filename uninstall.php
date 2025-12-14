@@ -44,7 +44,9 @@ foreach ($options as $option) {
 // Delete database table
 global $wpdb;
 $table_name = $wpdb->prefix . 'jedo_verification_tokens';
-$wpdb->query("DROP TABLE IF EXISTS $table_name");
+// Table name is safe - prefix is from WordPress and suffix is hardcoded
+// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+$wpdb->query("DROP TABLE IF EXISTS `" . esc_sql($table_name) . "`");
 
 // Delete user meta
 $wpdb->query("DELETE FROM {$wpdb->usermeta} WHERE meta_key LIKE 'jedo_%'");
