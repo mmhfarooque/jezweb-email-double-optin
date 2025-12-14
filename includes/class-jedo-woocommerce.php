@@ -109,11 +109,55 @@ class JEDO_WooCommerce {
         add_action('wp_ajax_jedo_check_verification_status', array($this, 'ajax_check_verification_status'));
         add_action('wp_ajax_nopriv_jedo_check_verification_status', array($this, 'ajax_check_verification_status'));
 
+        // AJAX handlers for inline email verification on checkout
+        add_action('wp_ajax_jedo_request_checkout_verification', array($this, 'ajax_request_checkout_verification'));
+        add_action('wp_ajax_nopriv_jedo_request_checkout_verification', array($this, 'ajax_request_checkout_verification'));
+        add_action('wp_ajax_jedo_check_email_verified', array($this, 'ajax_check_email_verified'));
+        add_action('wp_ajax_nopriv_jedo_check_email_verified', array($this, 'ajax_check_email_verified'));
+
         // WooCommerce Blocks integration
         add_action('woocommerce_blocks_loaded', array($this, 'register_blocks_integration'));
 
-        // Add script to checkout block page
-        add_action('wp_enqueue_scripts', array($this, 'enqueue_blocks_checkout_script'));
+        // Add inline email verification script to checkout
+        add_action('wp_enqueue_scripts', array($this, 'enqueue_checkout_email_verification_script'));
+
+        // Handle checkout email verification link
+        add_action('init', array($this, 'handle_checkout_email_verification'));
+    }
+
+    /**
+     * Handle checkout email verification link
+     */
+    public function handle_checkout_email_verification() {
+        if (!isset($_GET['jedo_checkout_verify']) || $_GET['jedo_checkout_verify'] !== '1') {
+            return;
+        }
+
+        $email = isset($_GET['email']) ? sanitize_email(urldecode($_GET['email'])) : '';
+        $token = isset($_GET['token']) ? sanitize_text_field($_GET['token']) : '';
+
+        if (empty($email) || empty($token)) {
+            wp_die(__('Invalid verification link.', 'jezweb-email-double-optin'));
+            return;
+        }
+
+        // Check pending verification transient
+        $transient_key = 'jedo_pending_checkout_' . md5($email);
+        $pending_data = get_transient($transient_key);
+
+        if (!$pending_data || $pending_data['token'] !== $token) {
+            wp_die(__('Invalid or expired verification link.', 'jezweb-email-double-optin'));
+            return;
+        }
+
+        // Mark as verified
+        $pending_data['verified'] = true;
+        set_transient($transient_key, $pending_data, HOUR_IN_SECONDS);
+
+        // Redirect to checkout with success message
+        $redirect_url = add_query_arg('jedo_email_verified', '1', wc_get_checkout_url());
+        wp_safe_redirect($redirect_url);
+        exit;
     }
 
     /**
@@ -792,26 +836,40 @@ class JEDO_WooCommerce {
      * @param WP_REST_Request $request The REST request.
      */
     public function blocks_checkout_validation($order, $request) {
+        // Get billing email from order
+        $billing_email = $order->get_billing_email();
+
+        // First check if this email was verified via checkout verification (transient)
+        if ($billing_email) {
+            $pending_data = get_transient('jedo_pending_checkout_' . md5($billing_email));
+            if ($pending_data && isset($pending_data['verified']) && $pending_data['verified']) {
+                // Email is verified via checkout flow - allow order
+                return;
+            }
+        }
+
         // Get user ID from order
         $user_id = $order->get_customer_id();
 
-        // If no user (guest checkout not allowed but somehow got through), skip
+        // If no user, check if email was verified
         if (!$user_id) {
-            // Check if we need to create a user from the request
-            $create_account = false;
-            $request_data = $request->get_json_params();
-
-            if (isset($request_data['create_account']) && $request_data['create_account']) {
-                $create_account = true;
+            if (!$billing_email) {
+                return; // No email to check
             }
 
-            // If creating account and no user yet, the user will be created by WooCommerce
-            // We need to check after user creation
-            if ($create_account) {
-                // Store flag to check after user creation
-                $order->update_meta_data('_jedo_needs_verification_check', 'yes');
-                $order->save();
+            // Check if email exists as a user
+            $existing_user = get_user_by('email', $billing_email);
+            if ($existing_user) {
+                $verified = get_user_meta($existing_user->ID, 'jedo_email_verified', true);
+                if ($verified === 'yes') {
+                    return; // Verified user
+                }
             }
+
+            // Email not verified - block order
+            $this->throw_blocks_checkout_error(
+                __('Email verification required. Please verify your email address before placing an order. Enter your email above and click "Send Verification Email".', 'jezweb-email-double-optin')
+            );
             return;
         }
 
@@ -867,207 +925,617 @@ class JEDO_WooCommerce {
     }
 
     /**
-     * Enqueue scripts for blocks checkout
+     * Enqueue inline email verification script for checkout
+     * This watches the email field and triggers verification when email is entered
      */
-    public function enqueue_blocks_checkout_script() {
+    public function enqueue_checkout_email_verification_script() {
         // Only on checkout page
         if (!is_checkout()) {
             return;
         }
 
-        // Check if blocks checkout is being used
-        if (!$this->is_blocks_checkout()) {
-            return;
-        }
+        // Add the inline styles
+        wp_add_inline_style('wp-block-library', $this->get_email_verification_styles());
 
-        if (!is_user_logged_in()) {
-            return;
-        }
-
-        $user_id = get_current_user_id();
-
-        // Skip if admin or already verified
-        if (user_can($user_id, 'manage_options')) {
-            return;
-        }
-
-        $verified = get_user_meta($user_id, 'jedo_email_verified', true);
-
-        if ($verified === 'yes') {
-            return;
-        }
-
-        // Add inline script for verification check
-        wp_add_inline_script('wc-checkout', $this->get_blocks_verification_script($user_id));
-
-        // Also enqueue our custom style for the notice
-        wp_add_inline_style('wc-blocks-style', $this->get_blocks_verification_styles());
+        // Add the JavaScript
+        wp_enqueue_script('jquery');
+        add_action('wp_footer', array($this, 'output_email_verification_script'), 99);
     }
 
     /**
-     * Check if blocks checkout is being used
-     *
-     * @return bool
+     * Output the email verification JavaScript in footer
      */
-    private function is_blocks_checkout() {
-        // Check if the checkout page contains the checkout block
-        global $post;
-
-        if (!$post) {
-            return false;
+    public function output_email_verification_script() {
+        if (!is_checkout()) {
+            return;
         }
-
-        // Check for Gutenberg blocks in content
-        if (has_block('woocommerce/checkout', $post)) {
-            return true;
-        }
-
-        // Check if WooCommerce Blocks is handling checkout
-        if (class_exists('Automattic\WooCommerce\Blocks\Package') &&
-            method_exists('Automattic\WooCommerce\Blocks\Package', 'feature_flags')) {
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * Get JavaScript for blocks checkout verification
-     *
-     * @param int $user_id User ID.
-     * @return string JavaScript code.
-     */
-    private function get_blocks_verification_script($user_id) {
-        $ajax_url = admin_url('admin-ajax.php');
-        $nonce = wp_create_nonce('jedo_check_verification');
-        $resend_url = add_query_arg(array(
-            'action' => 'jedo_resend_checkout',
-            'user_id' => $user_id,
-            'nonce' => wp_create_nonce('jedo_resend_checkout_' . $user_id)
-        ), wc_get_checkout_url());
-
-        return "
+        ?>
+        <script type="text/javascript">
         (function() {
             'use strict';
 
-            // Add verification notice to blocks checkout
-            function addVerificationNotice() {
-                var checkoutForm = document.querySelector('.wc-block-checkout');
-                if (!checkoutForm) {
-                    setTimeout(addVerificationNotice, 500);
-                    return;
-                }
+            var jedoVerification = {
+                ajaxUrl: '<?php echo esc_js(admin_url('admin-ajax.php')); ?>',
+                nonce: '<?php echo esc_js(wp_create_nonce('jedo_checkout_verification')); ?>',
+                verifiedEmails: {},
+                currentEmail: '',
+                checkInterval: null,
+                verificationToken: '',
 
-                // Check if notice already exists
-                if (document.querySelector('.jedo-blocks-verification-notice')) {
-                    return;
-                }
+                init: function() {
+                    var self = this;
 
-                var notice = document.createElement('div');
-                notice.className = 'jedo-blocks-verification-notice';
-                notice.innerHTML = '<div class=\"jedo-notice-content\">' +
-                    '<h4><span class=\"dashicons dashicons-warning\"></span> " . esc_js(__('Email Verification Required', 'jezweb-email-double-optin')) . "</h4>' +
-                    '<p>" . esc_js(__('You must verify your email address before placing an order. Please check your inbox for the verification email and click the link.', 'jezweb-email-double-optin')) . "</p>' +
-                    '<p><a href=\"" . esc_js($resend_url) . "\" class=\"jedo-resend-btn\">" . esc_js(__('Resend Verification Email', 'jezweb-email-double-optin')) . "</a></p>' +
-                    '<p class=\"jedo-auto-refresh\"><small>" . esc_js(__('This page will automatically update when you verify your email.', 'jezweb-email-double-optin')) . "</small></p>' +
-                    '</div>';
+                    // Wait for checkout to load
+                    self.waitForEmailField();
+                },
 
-                checkoutForm.parentNode.insertBefore(notice, checkoutForm);
-            }
+                waitForEmailField: function() {
+                    var self = this;
 
-            // Check verification status
-            function checkVerificationStatus() {
-                var xhr = new XMLHttpRequest();
-                xhr.open('POST', '" . esc_js($ajax_url) . "', true);
-                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-                xhr.onreadystatechange = function() {
-                    if (xhr.readyState === 4 && xhr.status === 200) {
-                        try {
-                            var response = JSON.parse(xhr.responseText);
-                            if (response.success && response.data.verified) {
-                                // Email verified - reload page
-                                var notice = document.querySelector('.jedo-blocks-verification-notice');
-                                if (notice) {
-                                    notice.innerHTML = '<div class=\"jedo-notice-success\"><p><strong>✓ " . esc_js(__('Email Verified!', 'jezweb-email-double-optin')) . "</strong> " . esc_js(__('Refreshing page...', 'jezweb-email-double-optin')) . "</p></div>';
-                                }
-                                setTimeout(function() {
-                                    location.reload();
-                                }, 1500);
-                                return;
-                            }
-                        } catch (e) {}
+                    // Try to find email field (works for both classic and blocks checkout)
+                    var emailField = document.querySelector('#email') ||
+                                    document.querySelector('input[id*="email"]') ||
+                                    document.querySelector('input[autocomplete="email"]') ||
+                                    document.querySelector('.wc-block-components-text-input input[type="email"]');
+
+                    if (!emailField) {
+                        setTimeout(function() { self.waitForEmailField(); }, 500);
+                        return;
                     }
-                };
-                xhr.send('action=jedo_check_verification_status&user_id=" . intval($user_id) . "&nonce=" . esc_js($nonce) . "');
-            }
 
-            // Initialize
-            document.addEventListener('DOMContentLoaded', function() {
-                addVerificationNotice();
-                // Check verification status every 5 seconds
-                setInterval(checkVerificationStatus, 5000);
-            });
+                    self.attachEmailListener(emailField);
+                },
 
-            // Also run immediately in case DOM is already loaded
-            if (document.readyState !== 'loading') {
-                addVerificationNotice();
-                setInterval(checkVerificationStatus, 5000);
+                attachEmailListener: function(emailField) {
+                    var self = this;
+
+                    // Create verification container
+                    self.createVerificationContainer(emailField);
+
+                    // Listen for email changes
+                    emailField.addEventListener('blur', function() {
+                        self.handleEmailChange(this.value);
+                    });
+
+                    emailField.addEventListener('change', function() {
+                        self.handleEmailChange(this.value);
+                    });
+
+                    // Check if email already has value
+                    if (emailField.value) {
+                        self.handleEmailChange(emailField.value);
+                    }
+                },
+
+                createVerificationContainer: function(emailField) {
+                    // Find the parent container
+                    var parent = emailField.closest('.wc-block-components-text-input') ||
+                                emailField.closest('.form-row') ||
+                                emailField.parentNode;
+
+                    // Check if container already exists
+                    if (document.getElementById('jedo-email-verification-container')) {
+                        return;
+                    }
+
+                    var container = document.createElement('div');
+                    container.id = 'jedo-email-verification-container';
+                    container.style.display = 'none';
+
+                    parent.parentNode.insertBefore(container, parent.nextSibling);
+                },
+
+                handleEmailChange: function(email) {
+                    var self = this;
+
+                    if (!self.isValidEmail(email)) {
+                        self.hideVerificationNotice();
+                        return;
+                    }
+
+                    // If email is same as current and already being processed, skip
+                    if (email === self.currentEmail) {
+                        return;
+                    }
+
+                    self.currentEmail = email;
+
+                    // Check if this email is already verified in this session
+                    if (self.verifiedEmails[email]) {
+                        self.showVerifiedState();
+                        return;
+                    }
+
+                    // Check email verification status
+                    self.checkEmailStatus(email);
+                },
+
+                isValidEmail: function(email) {
+                    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+                },
+
+                checkEmailStatus: function(email) {
+                    var self = this;
+                    var xhr = new XMLHttpRequest();
+                    xhr.open('POST', self.ajaxUrl, true);
+                    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                    xhr.onreadystatechange = function() {
+                        if (xhr.readyState === 4 && xhr.status === 200) {
+                            try {
+                                var response = JSON.parse(xhr.responseText);
+                                if (response.success) {
+                                    if (response.data.verified) {
+                                        self.verifiedEmails[email] = true;
+                                        self.showVerifiedState();
+                                    } else if (response.data.pending) {
+                                        self.verificationToken = response.data.token || '';
+                                        self.showPendingState(email);
+                                    } else {
+                                        self.showVerificationRequired(email);
+                                    }
+                                }
+                            } catch (e) {
+                                console.error('JEDO: Parse error', e);
+                            }
+                        }
+                    };
+                    xhr.send('action=jedo_check_email_verified&email=' + encodeURIComponent(email) + '&nonce=' + self.nonce);
+                },
+
+                showVerificationRequired: function(email) {
+                    var self = this;
+                    var container = document.getElementById('jedo-email-verification-container');
+                    if (!container) return;
+
+                    container.innerHTML =
+                        '<div class="jedo-email-verify-box">' +
+                            '<div class="jedo-verify-icon">📧</div>' +
+                            '<div class="jedo-verify-content">' +
+                                '<strong><?php echo esc_js(__('Email Verification Required', 'jezweb-email-double-optin')); ?></strong>' +
+                                '<p><?php echo esc_js(__('Please verify your email address to continue with checkout.', 'jezweb-email-double-optin')); ?></p>' +
+                                '<button type="button" class="jedo-verify-btn" id="jedo-send-verification">' +
+                                    '<?php echo esc_js(__('Send Verification Email', 'jezweb-email-double-optin')); ?>' +
+                                '</button>' +
+                            '</div>' +
+                        '</div>';
+
+                    container.style.display = 'block';
+
+                    // Attach click handler
+                    document.getElementById('jedo-send-verification').addEventListener('click', function() {
+                        self.sendVerificationEmail(email);
+                    });
+                },
+
+                sendVerificationEmail: function(email) {
+                    var self = this;
+                    var btn = document.getElementById('jedo-send-verification');
+
+                    if (btn) {
+                        btn.disabled = true;
+                        btn.innerHTML = '<?php echo esc_js(__('Sending...', 'jezweb-email-double-optin')); ?>';
+                    }
+
+                    var xhr = new XMLHttpRequest();
+                    xhr.open('POST', self.ajaxUrl, true);
+                    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                    xhr.onreadystatechange = function() {
+                        if (xhr.readyState === 4 && xhr.status === 200) {
+                            try {
+                                var response = JSON.parse(xhr.responseText);
+                                if (response.success) {
+                                    self.verificationToken = response.data.token || '';
+                                    self.showPendingState(email);
+                                } else {
+                                    alert(response.data.message || '<?php echo esc_js(__('Failed to send verification email. Please try again.', 'jezweb-email-double-optin')); ?>');
+                                    if (btn) {
+                                        btn.disabled = false;
+                                        btn.innerHTML = '<?php echo esc_js(__('Send Verification Email', 'jezweb-email-double-optin')); ?>';
+                                    }
+                                }
+                            } catch (e) {
+                                console.error('JEDO: Parse error', e);
+                            }
+                        }
+                    };
+                    xhr.send('action=jedo_request_checkout_verification&email=' + encodeURIComponent(email) + '&nonce=' + self.nonce);
+                },
+
+                showPendingState: function(email) {
+                    var self = this;
+                    var container = document.getElementById('jedo-email-verification-container');
+                    if (!container) return;
+
+                    container.innerHTML =
+                        '<div class="jedo-email-verify-box jedo-pending">' +
+                            '<div class="jedo-verify-icon">✉️</div>' +
+                            '<div class="jedo-verify-content">' +
+                                '<strong><?php echo esc_js(__('Verification Email Sent!', 'jezweb-email-double-optin')); ?></strong>' +
+                                '<p><?php echo esc_js(__('We have sent a verification email to your inbox. Please click the link in the email to verify.', 'jezweb-email-double-optin')); ?></p>' +
+                                '<p class="jedo-waiting"><span class="jedo-spinner"></span> <?php echo esc_js(__('Waiting for verification...', 'jezweb-email-double-optin')); ?></p>' +
+                                '<button type="button" class="jedo-resend-btn" id="jedo-resend-verification">' +
+                                    '<?php echo esc_js(__('Resend Email', 'jezweb-email-double-optin')); ?>' +
+                                '</button>' +
+                            '</div>' +
+                        '</div>';
+
+                    container.style.display = 'block';
+
+                    // Attach resend handler
+                    document.getElementById('jedo-resend-verification').addEventListener('click', function() {
+                        self.sendVerificationEmail(email);
+                    });
+
+                    // Start polling for verification
+                    self.startPolling(email);
+                },
+
+                startPolling: function(email) {
+                    var self = this;
+
+                    // Clear any existing interval
+                    if (self.checkInterval) {
+                        clearInterval(self.checkInterval);
+                    }
+
+                    // Poll every 3 seconds
+                    self.checkInterval = setInterval(function() {
+                        self.pollVerificationStatus(email);
+                    }, 3000);
+                },
+
+                pollVerificationStatus: function(email) {
+                    var self = this;
+                    var xhr = new XMLHttpRequest();
+                    xhr.open('POST', self.ajaxUrl, true);
+                    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                    xhr.onreadystatechange = function() {
+                        if (xhr.readyState === 4 && xhr.status === 200) {
+                            try {
+                                var response = JSON.parse(xhr.responseText);
+                                if (response.success && response.data.verified) {
+                                    self.verifiedEmails[email] = true;
+                                    self.showVerifiedState();
+
+                                    // Stop polling
+                                    if (self.checkInterval) {
+                                        clearInterval(self.checkInterval);
+                                    }
+                                }
+                            } catch (e) {}
+                        }
+                    };
+                    xhr.send('action=jedo_check_email_verified&email=' + encodeURIComponent(email) + '&token=' + encodeURIComponent(self.verificationToken) + '&nonce=' + self.nonce);
+                },
+
+                showVerifiedState: function() {
+                    var self = this;
+                    var container = document.getElementById('jedo-email-verification-container');
+                    if (!container) return;
+
+                    container.innerHTML =
+                        '<div class="jedo-email-verify-box jedo-verified">' +
+                            '<div class="jedo-verify-icon">✅</div>' +
+                            '<div class="jedo-verify-content">' +
+                                '<strong><?php echo esc_js(__('Email Verified!', 'jezweb-email-double-optin')); ?></strong>' +
+                                '<p><?php echo esc_js(__('Your email has been verified. You can now proceed with checkout.', 'jezweb-email-double-optin')); ?></p>' +
+                            '</div>' +
+                        '</div>';
+
+                    container.style.display = 'block';
+
+                    // Hide after 3 seconds
+                    setTimeout(function() {
+                        container.style.display = 'none';
+                    }, 3000);
+                },
+
+                hideVerificationNotice: function() {
+                    var container = document.getElementById('jedo-email-verification-container');
+                    if (container) {
+                        container.style.display = 'none';
+                    }
+                }
+            };
+
+            // Initialize when DOM is ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function() {
+                    jedoVerification.init();
+                });
+            } else {
+                jedoVerification.init();
             }
         })();
-        ";
+        </script>
+        <?php
     }
 
     /**
-     * Get CSS styles for blocks checkout verification notice
+     * Get CSS styles for email verification
      *
      * @return string CSS code.
      */
-    private function get_blocks_verification_styles() {
+    private function get_email_verification_styles() {
         return "
-        .jedo-blocks-verification-notice {
+        #jedo-email-verification-container {
+            margin: 15px 0;
+        }
+        .jedo-email-verify-box {
+            display: flex;
+            align-items: flex-start;
             background: #fff3cd;
             border: 1px solid #ffc107;
             border-left: 4px solid #ffc107;
             border-radius: 4px;
-            padding: 20px;
-            margin-bottom: 20px;
+            padding: 15px;
             color: #856404;
         }
-        .jedo-blocks-verification-notice h4 {
-            margin: 0 0 10px 0;
-            color: #856404;
-            font-size: 16px;
+        .jedo-email-verify-box.jedo-pending {
+            background: #e3f2fd;
+            border-color: #2196f3;
+            color: #1565c0;
         }
-        .jedo-blocks-verification-notice h4 .dashicons {
-            margin-right: 8px;
-        }
-        .jedo-blocks-verification-notice p {
-            margin: 10px 0;
-        }
-        .jedo-blocks-verification-notice .jedo-resend-btn {
-            display: inline-block;
-            background: #856404;
-            color: #fff;
-            padding: 10px 20px;
-            text-decoration: none;
-            border-radius: 4px;
-            font-weight: 500;
-        }
-        .jedo-blocks-verification-notice .jedo-resend-btn:hover {
-            background: #6d5303;
-            color: #fff;
-        }
-        .jedo-blocks-verification-notice .jedo-auto-refresh {
-            color: #666;
-        }
-        .jedo-notice-success {
+        .jedo-email-verify-box.jedo-verified {
             background: #d4edda;
             border-color: #28a745;
             color: #155724;
-            padding: 15px;
+        }
+        .jedo-verify-icon {
+            font-size: 24px;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+        .jedo-verify-content {
+            flex: 1;
+        }
+        .jedo-verify-content strong {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        .jedo-verify-content p {
+            margin: 5px 0;
+            font-size: 13px;
+        }
+        .jedo-verify-btn {
+            display: inline-block;
+            background: #ffc107;
+            color: #856404;
+            padding: 10px 20px;
+            border: none;
             border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .jedo-verify-btn:hover {
+            background: #e0a800;
+        }
+        .jedo-verify-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+        .jedo-resend-btn {
+            display: inline-block;
+            background: transparent;
+            color: #1565c0;
+            padding: 5px 10px;
+            border: 1px solid #1565c0;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        .jedo-resend-btn:hover {
+            background: #1565c0;
+            color: #fff;
+        }
+        .jedo-waiting {
+            display: flex;
+            align-items: center;
+        }
+        .jedo-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #1565c0;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: jedo-spin 1s linear infinite;
+            margin-right: 8px;
+        }
+        @keyframes jedo-spin {
+            to { transform: rotate(360deg); }
         }
         ";
+    }
+
+    /**
+     * AJAX handler to request checkout email verification
+     * Creates a pending verification and sends email
+     */
+    public function ajax_request_checkout_verification() {
+        // Verify nonce
+        if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'jedo_checkout_verification')) {
+            wp_send_json_error(array('message' => __('Security check failed.', 'jezweb-email-double-optin')));
+            return;
+        }
+
+        $email = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
+
+        if (empty($email) || !is_email($email)) {
+            wp_send_json_error(array('message' => __('Invalid email address.', 'jezweb-email-double-optin')));
+            return;
+        }
+
+        // Check if user already exists with this email
+        $existing_user = get_user_by('email', $email);
+
+        if ($existing_user) {
+            // User exists - check if verified
+            $verified = get_user_meta($existing_user->ID, 'jedo_email_verified', true);
+
+            if ($verified === 'yes') {
+                wp_send_json_success(array(
+                    'verified' => true,
+                    'message' => __('Email already verified.', 'jezweb-email-double-optin')
+                ));
+                return;
+            }
+
+            // User exists but not verified - send verification email
+            $token = JEDO_Email::get_instance()->send_verification_email($existing_user->ID, $email, 'checkout_existing');
+
+            wp_send_json_success(array(
+                'verified' => false,
+                'pending' => true,
+                'token' => $token,
+                'message' => __('Verification email sent.', 'jezweb-email-double-optin')
+            ));
+            return;
+        }
+
+        // New email - create pending verification without creating user yet
+        // Generate a unique token for this email
+        $token = bin2hex(random_bytes(32));
+
+        // Store pending verification in transient (expires in 1 hour)
+        $pending_data = array(
+            'email' => $email,
+            'token' => $token,
+            'created' => time(),
+            'verified' => false
+        );
+
+        set_transient('jedo_pending_checkout_' . md5($email), $pending_data, HOUR_IN_SECONDS);
+
+        // Send verification email using our email class (without user)
+        $this->send_checkout_verification_email($email, $token);
+
+        wp_send_json_success(array(
+            'verified' => false,
+            'pending' => true,
+            'token' => $token,
+            'message' => __('Verification email sent.', 'jezweb-email-double-optin')
+        ));
+    }
+
+    /**
+     * Send verification email for checkout (without user account)
+     *
+     * @param string $email Email address.
+     * @param string $token Verification token.
+     */
+    private function send_checkout_verification_email($email, $token) {
+        // Build verification URL
+        $verification_url = add_query_arg(array(
+            'jedo_checkout_verify' => '1',
+            'email' => urlencode($email),
+            'token' => $token
+        ), home_url());
+
+        // Get email template settings
+        $subject = get_option('jedo_email_subject', __('Verify your email address', 'jezweb-email-double-optin'));
+        $heading = get_option('jedo_email_heading', __('Verify Your Email', 'jezweb-email-double-optin'));
+        $body = get_option('jedo_email_body', __('Thank you for your interest. Please click the button below to verify your email address.', 'jezweb-email-double-optin'));
+        $button_text = get_option('jedo_email_button_text', __('Verify Email Address', 'jezweb-email-double-optin'));
+        $button_color = get_option('jedo_email_button_color', '#0073aa');
+        $footer = get_option('jedo_email_footer', __('If you did not request this verification, please ignore this email.', 'jezweb-email-double-optin'));
+
+        // Replace placeholders
+        $site_name = get_bloginfo('name');
+        $subject = str_replace('{site_name}', $site_name, $subject);
+        $body = str_replace(array('{user_name}', '{site_name}'), array($email, $site_name), $body);
+
+        // Build email HTML
+        $message = '
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>' . esc_html($subject) . '</title>
+        </head>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: #f9f9f9; padding: 30px; border-radius: 5px;">
+                <h2 style="color: #333; margin-bottom: 20px;">' . esc_html($heading) . '</h2>
+                <p style="margin-bottom: 20px;">' . nl2br(esc_html($body)) . '</p>
+                <p style="margin-bottom: 30px;">
+                    <a href="' . esc_url($verification_url) . '" style="display: inline-block; background-color: ' . esc_attr($button_color) . '; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">' . esc_html($button_text) . '</a>
+                </p>
+                <p style="font-size: 12px; color: #666;">' . esc_html($footer) . '</p>
+            </div>
+        </body>
+        </html>';
+
+        // Send email
+        $headers = array(
+            'Content-Type: text/html; charset=UTF-8',
+            'From: ' . $site_name . ' <' . get_option('admin_email') . '>'
+        );
+
+        wp_mail($email, $subject, $message, $headers);
+    }
+
+    /**
+     * AJAX handler to check if email is verified
+     */
+    public function ajax_check_email_verified() {
+        // Verify nonce
+        if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'jedo_checkout_verification')) {
+            wp_send_json_error(array('message' => __('Security check failed.', 'jezweb-email-double-optin')));
+            return;
+        }
+
+        $email = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
+
+        if (empty($email) || !is_email($email)) {
+            wp_send_json_error(array('message' => __('Invalid email address.', 'jezweb-email-double-optin')));
+            return;
+        }
+
+        // Check if user exists with this email
+        $existing_user = get_user_by('email', $email);
+
+        if ($existing_user) {
+            $verified = get_user_meta($existing_user->ID, 'jedo_email_verified', true);
+
+            wp_send_json_success(array(
+                'verified' => ($verified === 'yes'),
+                'pending' => ($verified !== 'yes'),
+                'user_exists' => true
+            ));
+            return;
+        }
+
+        // Check pending verification transient
+        $pending_data = get_transient('jedo_pending_checkout_' . md5($email));
+
+        if ($pending_data && isset($pending_data['verified']) && $pending_data['verified']) {
+            wp_send_json_success(array(
+                'verified' => true,
+                'pending' => false,
+                'user_exists' => false
+            ));
+            return;
+        }
+
+        if ($pending_data) {
+            wp_send_json_success(array(
+                'verified' => false,
+                'pending' => true,
+                'user_exists' => false
+            ));
+            return;
+        }
+
+        // No record found - email needs verification
+        wp_send_json_success(array(
+            'verified' => false,
+            'pending' => false,
+            'user_exists' => false
+        ));
     }
 }
 

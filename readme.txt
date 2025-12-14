@@ -4,7 +4,7 @@ Tags: email verification, double opt-in, woocommerce, registration, email confir
 Requires at least: 5.0
 Tested up to: 6.4
 Requires PHP: 7.4
-Stable tag: 1.4.0
+Stable tag: 1.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -106,6 +106,15 @@ Yes, the plugin implements multiple security measures including cryptographicall
 
 == Changelog ==
 
+= 1.5.0 =
+* NEW: Inline email verification on checkout - verify email BEFORE filling form
+* Email verification box appears immediately after entering email address
+* "Send Verification Email" button triggers verification from checkout page
+* Real-time polling detects when email is verified (auto-updates UI)
+* Works with WooCommerce Blocks checkout and classic checkout
+* Verification without creating full user account (transient-based)
+* Improved user experience - no more surprises at order placement
+
 = 1.4.0 =
 * Added WooCommerce Blocks checkout support
 * Works with both classic shortcode checkout and new block-based checkout
@@ -149,6 +158,9 @@ Yes, the plugin implements multiple security measures including cryptographicall
 * Statistics dashboard
 
 == Upgrade Notice ==
+
+= 1.5.0 =
+Major UX improvement: Email verification now happens immediately after entering email, before filling out the rest of the checkout form.
 
 = 1.4.0 =
 Adds support for WooCommerce Blocks checkout (the new block-based checkout). Works with both classic and blocks checkout.
