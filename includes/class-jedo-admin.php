@@ -800,6 +800,32 @@ class JEDO_Admin {
             if (isset($allowed_settings[$key])) {
                 $sanitize_callback = $allowed_settings[$key];
                 $sanitized_value = call_user_func($sanitize_callback, $value);
+
+                // Additional validation for specific fields
+                switch ($key) {
+                    case 'jedo_verification_method':
+                        if (!in_array($sanitized_value, array('link', 'otp'), true)) {
+                            $sanitized_value = 'link';
+                        }
+                        break;
+                    case 'jedo_otp_length':
+                        if (!in_array($sanitized_value, array('4', '6'), true)) {
+                            $sanitized_value = '6';
+                        }
+                        break;
+                    case 'jedo_otp_type':
+                        if (!in_array($sanitized_value, array('numeric', 'alphanumeric'), true)) {
+                            $sanitized_value = 'alphanumeric';
+                        }
+                        break;
+                    case 'jedo_otp_expiry_minutes':
+                        $sanitized_value = max(1, min(30, $sanitized_value));
+                        break;
+                    case 'jedo_otp_max_attempts':
+                        $sanitized_value = max(1, min(10, $sanitized_value));
+                        break;
+                }
+
                 update_option($key, $sanitized_value);
             }
         }
