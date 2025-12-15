@@ -127,6 +127,70 @@ class JEDO_WooCommerce {
 
         // Handle checkout email verification link
         add_action('init', array($this, 'handle_checkout_email_verification'));
+
+        // Move email field to first position in checkout
+        add_filter('woocommerce_checkout_fields', array($this, 'reorder_checkout_fields'), 9999);
+        add_filter('woocommerce_billing_fields', array($this, 'reorder_billing_fields'), 9999);
+    }
+
+    /**
+     * Reorder checkout fields to put email first
+     *
+     * @param array $fields Checkout fields.
+     * @return array
+     */
+    public function reorder_checkout_fields($fields) {
+        if (isset($fields['billing']['billing_email'])) {
+            // Set email to be first with priority 1
+            $fields['billing']['billing_email']['priority'] = 1;
+
+            // Ensure other fields come after
+            if (isset($fields['billing']['billing_first_name'])) {
+                $fields['billing']['billing_first_name']['priority'] = 10;
+            }
+            if (isset($fields['billing']['billing_last_name'])) {
+                $fields['billing']['billing_last_name']['priority'] = 20;
+            }
+            if (isset($fields['billing']['billing_company'])) {
+                $fields['billing']['billing_company']['priority'] = 30;
+            }
+            if (isset($fields['billing']['billing_country'])) {
+                $fields['billing']['billing_country']['priority'] = 40;
+            }
+            if (isset($fields['billing']['billing_address_1'])) {
+                $fields['billing']['billing_address_1']['priority'] = 50;
+            }
+            if (isset($fields['billing']['billing_address_2'])) {
+                $fields['billing']['billing_address_2']['priority'] = 60;
+            }
+            if (isset($fields['billing']['billing_city'])) {
+                $fields['billing']['billing_city']['priority'] = 70;
+            }
+            if (isset($fields['billing']['billing_state'])) {
+                $fields['billing']['billing_state']['priority'] = 80;
+            }
+            if (isset($fields['billing']['billing_postcode'])) {
+                $fields['billing']['billing_postcode']['priority'] = 90;
+            }
+            if (isset($fields['billing']['billing_phone'])) {
+                $fields['billing']['billing_phone']['priority'] = 100;
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * Reorder billing fields specifically
+     *
+     * @param array $fields Billing fields.
+     * @return array
+     */
+    public function reorder_billing_fields($fields) {
+        if (isset($fields['billing_email'])) {
+            $fields['billing_email']['priority'] = 1;
+        }
+        return $fields;
     }
 
     /**
@@ -1221,6 +1285,7 @@ class JEDO_WooCommerce {
                 mutationObserver: null,
                 retryCount: 0,
                 maxRetries: 60,
+                fieldsDisabled: false,
 
                 init: function() {
                     var self = this;
@@ -1510,6 +1575,68 @@ class JEDO_WooCommerce {
                     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
                 },
 
+                disableCheckoutFields: function() {
+                    var self = this;
+                    if (self.fieldsDisabled) return;
+
+                    // Find all checkout form inputs except email
+                    var checkoutForm = document.querySelector('form.checkout, form.woocommerce-checkout, .wc-block-checkout');
+                    if (!checkoutForm) return;
+
+                    var emailField = self.findEmailField();
+                    var inputs = checkoutForm.querySelectorAll('input:not([type="hidden"]), select, textarea, button[type="submit"]');
+
+                    inputs.forEach(function(input) {
+                        // Skip the email field itself
+                        if (input === emailField) return;
+                        // Skip verification-related elements
+                        if (input.closest('#jedo-email-verification-container')) return;
+
+                        input.setAttribute('data-jedo-original-disabled', input.disabled ? 'true' : 'false');
+                        input.disabled = true;
+                        input.style.opacity = '0.5';
+                        input.style.pointerEvents = 'none';
+                    });
+
+                    // Add overlay to checkout sections
+                    var billingSection = document.querySelector('.woocommerce-billing-fields, .wc-block-components-address-form');
+                    if (billingSection && !document.getElementById('jedo-checkout-overlay')) {
+                        var overlay = document.createElement('div');
+                        overlay.id = 'jedo-checkout-overlay';
+                        overlay.innerHTML = '<div class="jedo-overlay-message"><?php echo esc_js(__('Please verify your email first', 'jezweb-email-double-optin')); ?></div>';
+                        billingSection.style.position = 'relative';
+                        billingSection.appendChild(overlay);
+                    }
+
+                    self.fieldsDisabled = true;
+                },
+
+                enableCheckoutFields: function() {
+                    var self = this;
+                    if (!self.fieldsDisabled) return;
+
+                    var checkoutForm = document.querySelector('form.checkout, form.woocommerce-checkout, .wc-block-checkout');
+                    if (!checkoutForm) return;
+
+                    var inputs = checkoutForm.querySelectorAll('input:not([type="hidden"]), select, textarea, button[type="submit"]');
+
+                    inputs.forEach(function(input) {
+                        var wasDisabled = input.getAttribute('data-jedo-original-disabled') === 'true';
+                        input.disabled = wasDisabled;
+                        input.style.opacity = '';
+                        input.style.pointerEvents = '';
+                        input.removeAttribute('data-jedo-original-disabled');
+                    });
+
+                    // Remove overlay
+                    var overlay = document.getElementById('jedo-checkout-overlay');
+                    if (overlay) {
+                        overlay.remove();
+                    }
+
+                    self.fieldsDisabled = false;
+                },
+
                 checkEmailStatus: function(email) {
                     var self = this;
                     var xhr = new XMLHttpRequest();
@@ -1543,24 +1670,23 @@ class JEDO_WooCommerce {
                     var container = document.getElementById('jedo-email-verification-container');
                     if (!container) return;
 
+                    // Disable other checkout fields until verification is complete
+                    self.disableCheckoutFields();
+
+                    // Show sending state immediately
                     container.innerHTML =
-                        '<div class="jedo-email-verify-box">' +
-                            '<div class="jedo-verify-icon">📧</div>' +
+                        '<div class="jedo-email-verify-box jedo-sending">' +
+                            '<div class="jedo-verify-icon"><span class="jedo-spinner"></span></div>' +
                             '<div class="jedo-verify-content">' +
-                                '<strong><?php echo esc_js(__('Email Verification Required', 'jezweb-email-double-optin')); ?></strong>' +
-                                '<p><?php echo esc_js(__('Please verify your email address to continue with checkout.', 'jezweb-email-double-optin')); ?></p>' +
-                                '<button type="button" class="jedo-verify-btn" id="jedo-send-verification">' +
-                                    '<?php echo esc_js(__('Send Verification Email', 'jezweb-email-double-optin')); ?>' +
-                                '</button>' +
+                                '<strong><?php echo esc_js(__('Sending Verification...', 'jezweb-email-double-optin')); ?></strong>' +
+                                '<p><?php echo esc_js(__('Please wait while we send the verification code to your email.', 'jezweb-email-double-optin')); ?></p>' +
                             '</div>' +
                         '</div>';
 
                     container.style.display = 'block';
 
-                    // Attach click handler
-                    document.getElementById('jedo-send-verification').addEventListener('click', function() {
-                        self.sendVerificationEmail(email);
-                    });
+                    // Auto-send verification email immediately (no button click required)
+                    self.sendVerificationEmail(email);
                 },
 
                 sendVerificationEmail: function(email) {
@@ -1704,8 +1830,9 @@ class JEDO_WooCommerce {
                     var feedback = document.getElementById('jedo-otp-feedback');
                     var otp = otpInput.value.trim().toUpperCase();
 
-                    if (otp.length !== 6) {
-                        feedback.innerHTML = '<span class="jedo-otp-error"><?php echo esc_js(__('Please enter a 6-character code.', 'jezweb-email-double-optin')); ?></span>';
+                    if (otp.length !== self.otpLength) {
+                        var codeType = (self.otpType === 'numeric') ? '<?php echo esc_js(__('digit', 'jezweb-email-double-optin')); ?>' : '<?php echo esc_js(__('character', 'jezweb-email-double-optin')); ?>';
+                        feedback.innerHTML = '<span class="jedo-otp-error"><?php echo esc_js(__('Please enter a', 'jezweb-email-double-optin')); ?> ' + self.otpLength + '-' + codeType + ' <?php echo esc_js(__('code.', 'jezweb-email-double-optin')); ?></span>';
                         return;
                     }
 
@@ -1782,6 +1909,9 @@ class JEDO_WooCommerce {
                     var self = this;
                     var container = document.getElementById('jedo-email-verification-container');
                     if (!container) return;
+
+                    // Enable checkout fields now that email is verified
+                    self.enableCheckoutFields();
 
                     container.innerHTML =
                         '<div class="jedo-email-verify-box jedo-verified">' +
@@ -1967,6 +2097,36 @@ class JEDO_WooCommerce {
             background: #e8f5e9;
             border-color: #4caf50;
             color: #2e7d32;
+        }
+        .jedo-email-verify-box.jedo-sending {
+            background: #e3f2fd;
+            border-color: #2196f3;
+            color: #1565c0;
+        }
+        /* Checkout overlay to block fields until verified */
+        #jedo-checkout-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.9);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+        }
+        .jedo-overlay-message {
+            background: #fff3cd;
+            color: #856404;
+            padding: 20px 30px;
+            border-radius: 8px;
+            border: 2px solid #ffc107;
+            font-weight: 600;
+            font-size: 14px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
         }
         ";
     }
