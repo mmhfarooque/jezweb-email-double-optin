@@ -1246,8 +1246,31 @@ class JEDO_WooCommerce {
      * This watches the email field and triggers verification when email is entered
      */
     public function enqueue_checkout_email_verification_script() {
-        // Only on checkout page
-        if (!is_checkout()) {
+        // Check if we're on checkout page - multiple methods for compatibility
+        $is_checkout_page = false;
+
+        // Method 1: Standard WooCommerce check
+        if (function_exists('is_checkout') && is_checkout()) {
+            $is_checkout_page = true;
+        }
+
+        // Method 2: Check by page ID (works better with page builders)
+        if (!$is_checkout_page && function_exists('wc_get_page_id')) {
+            $checkout_page_id = wc_get_page_id('checkout');
+            if ($checkout_page_id && is_page($checkout_page_id)) {
+                $is_checkout_page = true;
+            }
+        }
+
+        // Method 3: Check URL for checkout (fallback for page builders)
+        if (!$is_checkout_page) {
+            $current_url = $_SERVER['REQUEST_URI'] ?? '';
+            if (strpos($current_url, 'checkout') !== false) {
+                $is_checkout_page = true;
+            }
+        }
+
+        if (!$is_checkout_page) {
             return;
         }
 
@@ -1263,9 +1286,8 @@ class JEDO_WooCommerce {
      * Output the email verification JavaScript in footer
      */
     public function output_email_verification_script() {
-        if (!is_checkout()) {
-            return;
-        }
+        // This is called from wp_footer, so checkout detection should work better here
+        // But we'll add fallbacks just in case
         ?>
         <script type="text/javascript">
         (function() {
@@ -1290,8 +1312,13 @@ class JEDO_WooCommerce {
                 init: function() {
                     var self = this;
 
+                    console.log('JEDO: Initializing email verification...');
+                    console.log('JEDO: OTP Mode:', self.isOtpMode);
+                    console.log('JEDO: OTP Length:', self.otpLength);
+
                     // Prevent double initialization
                     if (self.initialized) {
+                        console.log('JEDO: Already initialized, skipping');
                         return;
                     }
 
@@ -1449,11 +1476,17 @@ class JEDO_WooCommerce {
                     if (!emailField) {
                         self.retryCount++;
                         if (self.retryCount < self.maxRetries) {
+                            if (self.retryCount % 10 === 0) {
+                                console.log('JEDO: Still looking for email field... attempt', self.retryCount);
+                            }
                             setTimeout(function() { self.waitForEmailField(); }, 500);
+                        } else {
+                            console.log('JEDO: Could not find email field after', self.maxRetries, 'attempts');
                         }
                         return;
                     }
 
+                    console.log('JEDO: Email field found!', emailField);
                     self.attachEmailListener(emailField);
                 },
 
@@ -1549,13 +1582,17 @@ class JEDO_WooCommerce {
                 handleEmailChange: function(email) {
                     var self = this;
 
+                    console.log('JEDO: handleEmailChange called with:', email);
+
                     if (!self.isValidEmail(email)) {
+                        console.log('JEDO: Invalid email format, hiding notice');
                         self.hideVerificationNotice();
                         return;
                     }
 
                     // If email is same as current and already being processed, skip
                     if (email === self.currentEmail) {
+                        console.log('JEDO: Same email, skipping');
                         return;
                     }
 
@@ -1563,10 +1600,12 @@ class JEDO_WooCommerce {
 
                     // Check if this email is already verified in this session
                     if (self.verifiedEmails[email]) {
+                        console.log('JEDO: Email already verified in session');
                         self.showVerifiedState();
                         return;
                     }
 
+                    console.log('JEDO: Checking email verification status...');
                     // Check email verification status
                     self.checkEmailStatus(email);
                 },
