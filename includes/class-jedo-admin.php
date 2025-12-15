@@ -88,6 +88,13 @@ class JEDO_Admin {
         register_setting('jedo_settings', 'jedo_message_already_verified');
         register_setting('jedo_settings', 'jedo_message_not_verified');
         register_setting('jedo_settings', 'jedo_message_resend_success');
+
+        // OTP settings
+        register_setting('jedo_settings', 'jedo_verification_method');
+        register_setting('jedo_settings', 'jedo_otp_length');
+        register_setting('jedo_settings', 'jedo_otp_type');
+        register_setting('jedo_settings', 'jedo_otp_expiry_minutes');
+        register_setting('jedo_settings', 'jedo_otp_max_attempts');
     }
 
     /**
@@ -252,6 +259,77 @@ class JEDO_Admin {
                                     </div>
                                     <div class="jedo-setting-control">
                                         <input type="number" id="jedo_delete_unverified_after" name="jedo_delete_unverified_after" value="<?php echo esc_attr($settings['delete_unverified_after']); ?>" min="0" max="365" class="jedo-input jedo-input-small">
+                                    </div>
+                                </div>
+
+                                <div class="jedo-setting-row">
+                                    <div class="jedo-setting-label">
+                                        <label for="jedo_verification_method"><?php esc_html_e('Verification Method', 'jezweb-email-double-optin'); ?></label>
+                                        <p class="jedo-setting-desc"><?php esc_html_e('Choose how users verify their email: via verification link or one-time password code.', 'jezweb-email-double-optin'); ?></p>
+                                    </div>
+                                    <div class="jedo-setting-control">
+                                        <select id="jedo_verification_method" name="jedo_verification_method" class="jedo-input">
+                                            <option value="link" <?php selected($settings['verification_method'], 'link'); ?>><?php esc_html_e('Email Verification Link', 'jezweb-email-double-optin'); ?></option>
+                                            <option value="otp" <?php selected($settings['verification_method'], 'otp'); ?>><?php esc_html_e('One-Time Password (OTP) Code', 'jezweb-email-double-optin'); ?></option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="jedo-setting-row jedo-otp-setting" style="<?php echo $settings['verification_method'] !== 'otp' ? 'display: none;' : ''; ?>">
+                                    <div class="jedo-setting-label">
+                                        <label><?php esc_html_e('OTP Length', 'jezweb-email-double-optin'); ?></label>
+                                        <p class="jedo-setting-desc"><?php esc_html_e('Choose the number of characters in the OTP code.', 'jezweb-email-double-optin'); ?></p>
+                                    </div>
+                                    <div class="jedo-setting-control">
+                                        <div class="jedo-toggle-group">
+                                            <label class="jedo-toggle-btn <?php echo $settings['otp_length'] === '4' ? 'active' : ''; ?>">
+                                                <input type="radio" name="jedo_otp_length" value="4" <?php checked($settings['otp_length'], '4'); ?>>
+                                                <span>4 Digits</span>
+                                            </label>
+                                            <label class="jedo-toggle-btn <?php echo $settings['otp_length'] === '6' ? 'active' : ''; ?>">
+                                                <input type="radio" name="jedo_otp_length" value="6" <?php checked($settings['otp_length'], '6'); ?>>
+                                                <span>6 Digits</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="jedo-setting-row jedo-otp-setting" style="<?php echo $settings['verification_method'] !== 'otp' ? 'display: none;' : ''; ?>">
+                                    <div class="jedo-setting-label">
+                                        <label><?php esc_html_e('OTP Type', 'jezweb-email-double-optin'); ?></label>
+                                        <p class="jedo-setting-desc"><?php esc_html_e('Choose whether OTP contains only numbers or letters and numbers.', 'jezweb-email-double-optin'); ?></p>
+                                    </div>
+                                    <div class="jedo-setting-control">
+                                        <div class="jedo-toggle-group">
+                                            <label class="jedo-toggle-btn <?php echo $settings['otp_type'] === 'numeric' ? 'active' : ''; ?>">
+                                                <input type="radio" name="jedo_otp_type" value="numeric" <?php checked($settings['otp_type'], 'numeric'); ?>>
+                                                <span>Numeric Only</span>
+                                            </label>
+                                            <label class="jedo-toggle-btn <?php echo $settings['otp_type'] === 'alphanumeric' ? 'active' : ''; ?>">
+                                                <input type="radio" name="jedo_otp_type" value="alphanumeric" <?php checked($settings['otp_type'], 'alphanumeric'); ?>>
+                                                <span>Alphanumeric</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="jedo-setting-row jedo-otp-setting" style="<?php echo $settings['verification_method'] !== 'otp' ? 'display: none;' : ''; ?>">
+                                    <div class="jedo-setting-label">
+                                        <label for="jedo_otp_expiry_minutes"><?php esc_html_e('OTP Expiry (minutes)', 'jezweb-email-double-optin'); ?></label>
+                                        <p class="jedo-setting-desc"><?php esc_html_e('How long OTP codes remain valid. Default: 5 minutes.', 'jezweb-email-double-optin'); ?></p>
+                                    </div>
+                                    <div class="jedo-setting-control">
+                                        <input type="number" id="jedo_otp_expiry_minutes" name="jedo_otp_expiry_minutes" value="<?php echo esc_attr($settings['otp_expiry_minutes']); ?>" min="1" max="30" class="jedo-input jedo-input-small">
+                                    </div>
+                                </div>
+
+                                <div class="jedo-setting-row jedo-otp-setting" style="<?php echo $settings['verification_method'] !== 'otp' ? 'display: none;' : ''; ?>">
+                                    <div class="jedo-setting-label">
+                                        <label for="jedo_otp_max_attempts"><?php esc_html_e('Max OTP Attempts', 'jezweb-email-double-optin'); ?></label>
+                                        <p class="jedo-setting-desc"><?php esc_html_e('Maximum incorrect attempts before requiring a new code. Default: 5.', 'jezweb-email-double-optin'); ?></p>
+                                    </div>
+                                    <div class="jedo-setting-control">
+                                        <input type="number" id="jedo_otp_max_attempts" name="jedo_otp_max_attempts" value="<?php echo esc_attr($settings['otp_max_attempts']); ?>" min="1" max="10" class="jedo-input jedo-input-small">
                                     </div>
                                 </div>
                             </div>
@@ -668,6 +746,12 @@ class JEDO_Admin {
             'message_already_verified' => get_option('jedo_message_already_verified', ''),
             'message_not_verified' => get_option('jedo_message_not_verified', ''),
             'message_resend_success' => get_option('jedo_message_resend_success', ''),
+            // OTP settings
+            'verification_method' => get_option('jedo_verification_method', 'link'),
+            'otp_length' => get_option('jedo_otp_length', '6'),
+            'otp_type' => get_option('jedo_otp_type', 'alphanumeric'),
+            'otp_expiry_minutes' => get_option('jedo_otp_expiry_minutes', 5),
+            'otp_max_attempts' => get_option('jedo_otp_max_attempts', 5),
         );
     }
 
@@ -704,6 +788,12 @@ class JEDO_Admin {
             'jedo_message_already_verified' => 'sanitize_textarea_field',
             'jedo_message_not_verified' => 'sanitize_textarea_field',
             'jedo_message_resend_success' => 'sanitize_textarea_field',
+            // OTP settings
+            'jedo_verification_method' => 'sanitize_text_field',
+            'jedo_otp_length' => 'sanitize_text_field',
+            'jedo_otp_type' => 'sanitize_text_field',
+            'jedo_otp_expiry_minutes' => 'absint',
+            'jedo_otp_max_attempts' => 'absint',
         );
 
         foreach ($settings as $key => $value) {

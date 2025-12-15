@@ -265,6 +265,62 @@
     cursor: not-allowed;
 }
 
+/* Toggle button group */
+.jedo-toggle-group {
+    display: inline-flex;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #d1d5db;
+    background: #f3f4f6;
+}
+
+.jedo-toggle-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 20px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: #6b7280;
+    transition: all 0.2s ease;
+    margin: 0;
+}
+
+.jedo-toggle-btn input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.jedo-toggle-btn span {
+    position: relative;
+    z-index: 1;
+}
+
+.jedo-toggle-btn:hover {
+    color: #374151;
+    background: rgba(255, 255, 255, 0.5);
+}
+
+.jedo-toggle-btn.active,
+.jedo-toggle-btn:has(input:checked) {
+    background: #1e3a5f;
+    color: #fff;
+}
+
+.jedo-toggle-btn + .jedo-toggle-btn {
+    border-left: 1px solid #d1d5db;
+}
+
+.jedo-toggle-btn.active + .jedo-toggle-btn,
+.jedo-toggle-btn:has(input:checked) + .jedo-toggle-btn {
+    border-left-color: #1e3a5f;
+}
+
 /* Inputs */
 .jedo-input {
     width: 100%;

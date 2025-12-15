@@ -32,6 +32,16 @@ class JEDO_Verification {
     const MAX_RESEND_PER_HOUR = 5;
 
     /**
+     * Default OTP expiry time in minutes
+     */
+    const OTP_EXPIRY_MINUTES = 5;
+
+    /**
+     * Default maximum OTP verification attempts
+     */
+    const OTP_MAX_ATTEMPTS = 5;
+
+    /**
      * Get instance
      */
     public static function get_instance() {
@@ -68,6 +78,10 @@ class JEDO_Verification {
         // Handle resend verification
         add_action('wp_ajax_nopriv_jedo_resend_verification', array($this, 'ajax_resend_verification'));
         add_action('wp_ajax_jedo_resend_verification', array($this, 'ajax_resend_verification'));
+
+        // OTP verification
+        add_action('wp_ajax_nopriv_jedo_verify_otp', array($this, 'ajax_verify_otp'));
+        add_action('wp_ajax_jedo_verify_otp', array($this, 'ajax_verify_otp'));
 
         // Cleanup expired tokens
         add_action('jedo_cleanup_tokens', array($this, 'cleanup_expired_tokens'));
@@ -635,5 +649,305 @@ class JEDO_Verification {
             return false;
         }
         return get_user_meta($user_id, 'jedo_email_verified', true) === 'yes';
+    }
+
+    /**
+     * Check if OTP verification method is enabled
+     *
+     * @return bool
+     */
+    public static function is_otp_enabled() {
+        return get_option('jedo_verification_method', 'link') === 'otp';
+    }
+
+    /**
+     * Generate OTP code based on settings
+     * Length: 4 or 6 characters (configurable)
+     * Type: numeric only or alphanumeric (configurable)
+     *
+     * @return string OTP code
+     */
+    public function generate_otp_code() {
+        // Get settings
+        $otp_length = get_option('jedo_otp_length', '6');
+        $otp_type = get_option('jedo_otp_type', 'alphanumeric');
+
+        // Validate length (4 or 6)
+        $length = ($otp_length === '4') ? 4 : 6;
+
+        // Set character set based on type
+        if ($otp_type === 'numeric') {
+            // Numeric only: 0-9 (excluding confusing 0 and 1)
+            $characters = '23456789';
+        } else {
+            // Alphanumeric: A-Z (excluding O, I) and 0-9 (excluding 0, 1)
+            // This avoids confusion between O/0 and I/1
+            $characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        }
+
+        $otp = '';
+        $char_length = strlen($characters);
+
+        for ($i = 0; $i < $length; $i++) {
+            $otp .= $characters[random_int(0, $char_length - 1)];
+        }
+
+        return $otp;
+    }
+
+    /**
+     * Get current OTP length setting
+     *
+     * @return int OTP length (4 or 6)
+     */
+    public static function get_otp_length() {
+        $otp_length = get_option('jedo_otp_length', '6');
+        return ($otp_length === '4') ? 4 : 6;
+    }
+
+    /**
+     * Get current OTP type setting
+     *
+     * @return string OTP type ('numeric' or 'alphanumeric')
+     */
+    public static function get_otp_type() {
+        return get_option('jedo_otp_type', 'alphanumeric');
+    }
+
+    /**
+     * Generate verification token with OTP
+     *
+     * @param int    $user_id User ID (0 for guest checkout).
+     * @param string $email   Email address.
+     * @param string $type    Verification type.
+     * @return array Array containing 'token' and 'otp_code'
+     */
+    public function generate_otp_token($user_id, $email, $type = 'registration') {
+        global $wpdb;
+
+        $user_id = absint($user_id);
+        $email = sanitize_email($email);
+        $type = sanitize_key($type);
+
+        $table_name = $wpdb->prefix . 'jedo_verification_tokens';
+
+        // Generate cryptographically secure token and OTP
+        $token = bin2hex(random_bytes(32));
+        $otp_code = $this->generate_otp_code();
+
+        // Get OTP expiry from settings (default 5 minutes)
+        $expiry_minutes = absint(get_option('jedo_otp_expiry_minutes', self::OTP_EXPIRY_MINUTES));
+        if ($expiry_minutes < 1) {
+            $expiry_minutes = self::OTP_EXPIRY_MINUTES;
+        }
+
+        // Delete any existing tokens for this user/email/type
+        $wpdb->delete(
+            $table_name,
+            array(
+                'user_id' => $user_id,
+                'email' => $email,
+                'type' => $type
+            ),
+            array('%d', '%s', '%s')
+        );
+
+        // Insert new token with OTP
+        $wpdb->insert(
+            $table_name,
+            array(
+                'user_id' => $user_id,
+                'token' => $token,
+                'otp_code' => $otp_code,
+                'otp_attempts' => 0,
+                'email' => $email,
+                'type' => $type,
+                'created_at' => current_time('mysql'),
+                'expires_at' => gmdate('Y-m-d H:i:s', strtotime('+' . $expiry_minutes . ' minutes'))
+            ),
+            array('%d', '%s', '%s', '%d', '%s', '%s', '%s', '%s')
+        );
+
+        return array(
+            'token' => $token,
+            'otp_code' => $otp_code
+        );
+    }
+
+    /**
+     * Verify OTP code
+     *
+     * @param string $email    Email address.
+     * @param string $otp_code OTP code entered by user.
+     * @return array Result with 'success', 'message', and optionally 'user_id'
+     */
+    public function verify_otp($email, $otp_code) {
+        global $wpdb;
+
+        $email = sanitize_email($email);
+        $otp_code = strtoupper(sanitize_text_field($otp_code));
+
+        // Get OTP settings
+        $otp_length = self::get_otp_length();
+        $otp_type = self::get_otp_type();
+
+        // Build validation pattern based on settings
+        if ($otp_type === 'numeric') {
+            $pattern = '/^[0-9]{' . $otp_length . '}$/';
+            $format_msg = sprintf(
+                /* translators: %d: number of digits */
+                __('Invalid OTP format. Please enter a %d-digit numeric code.', 'jezweb-email-double-optin'),
+                $otp_length
+            );
+        } else {
+            $pattern = '/^[A-Z0-9]{' . $otp_length . '}$/i';
+            $format_msg = sprintf(
+                /* translators: %d: number of characters */
+                __('Invalid OTP format. Please enter a %d-character code.', 'jezweb-email-double-optin'),
+                $otp_length
+            );
+        }
+
+        // Validate OTP format
+        if (!preg_match($pattern, $otp_code)) {
+            return array(
+                'success' => false,
+                'message' => $format_msg,
+                'error_code' => 'invalid_format'
+            );
+        }
+
+        $table_name = $wpdb->prefix . 'jedo_verification_tokens';
+        $max_attempts = absint(get_option('jedo_otp_max_attempts', self::OTP_MAX_ATTEMPTS));
+
+        // Find the most recent unverified token for this email
+        $record = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM `{$table_name}` WHERE email = %s AND verified_at IS NULL ORDER BY created_at DESC LIMIT 1",
+            $email
+        ));
+
+        if (!$record) {
+            return array(
+                'success' => false,
+                'message' => __('No pending verification found. Please request a new code.', 'jezweb-email-double-optin'),
+                'error_code' => 'no_pending'
+            );
+        }
+
+        // Check if expired
+        if (strtotime($record->expires_at) < time()) {
+            return array(
+                'success' => false,
+                'message' => __('This code has expired. Please request a new one.', 'jezweb-email-double-optin'),
+                'error_code' => 'expired'
+            );
+        }
+
+        // Check if max attempts exceeded
+        if ($record->otp_attempts >= $max_attempts) {
+            return array(
+                'success' => false,
+                'message' => sprintf(
+                    /* translators: %d: maximum number of attempts */
+                    __('Maximum attempts (%d) exceeded. Please request a new code.', 'jezweb-email-double-optin'),
+                    $max_attempts
+                ),
+                'error_code' => 'max_attempts'
+            );
+        }
+
+        // Verify the OTP code (timing-safe comparison)
+        if (!hash_equals(strtoupper($record->otp_code), $otp_code)) {
+            // Increment attempts
+            $wpdb->update(
+                $table_name,
+                array('otp_attempts' => $record->otp_attempts + 1),
+                array('id' => absint($record->id)),
+                array('%d'),
+                array('%d')
+            );
+
+            $remaining = $max_attempts - ($record->otp_attempts + 1);
+
+            if ($remaining <= 0) {
+                return array(
+                    'success' => false,
+                    'message' => __('Maximum attempts exceeded. Please request a new code.', 'jezweb-email-double-optin'),
+                    'error_code' => 'max_attempts'
+                );
+            }
+
+            return array(
+                'success' => false,
+                'message' => sprintf(
+                    /* translators: %d: number of remaining attempts */
+                    __('Incorrect code. %d attempts remaining.', 'jezweb-email-double-optin'),
+                    $remaining
+                ),
+                'error_code' => 'incorrect',
+                'attempts_remaining' => $remaining
+            );
+        }
+
+        // OTP is correct - mark as verified
+        $wpdb->update(
+            $table_name,
+            array('verified_at' => current_time('mysql')),
+            array('id' => absint($record->id)),
+            array('%s'),
+            array('%d')
+        );
+
+        // Update user meta if user exists
+        $user_id = absint($record->user_id);
+        if ($user_id > 0) {
+            update_user_meta($user_id, 'jedo_email_verified', 'yes');
+            update_user_meta($user_id, 'jedo_verification_pending', 'no');
+            update_user_meta($user_id, 'jedo_verified_at', current_time('mysql'));
+
+            // Trigger action for other plugins
+            do_action('jedo_email_verified', $user_id, $record->email, $record->type);
+        }
+
+        // For guest checkout, update the transient
+        $transient_key = 'jedo_pending_checkout_' . md5($email);
+        $pending_data = get_transient($transient_key);
+        if ($pending_data) {
+            $pending_data['verified'] = true;
+            set_transient($transient_key, $pending_data, HOUR_IN_SECONDS);
+        }
+
+        return array(
+            'success' => true,
+            'message' => get_option('jedo_message_verification_success', __('Your email has been verified successfully!', 'jezweb-email-double-optin')),
+            'user_id' => $user_id
+        );
+    }
+
+    /**
+     * AJAX handler for OTP verification
+     */
+    public function ajax_verify_otp() {
+        // Verify nonce
+        if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'])), 'jedo_otp_verification')) {
+            wp_send_json_error(array('message' => __('Security check failed.', 'jezweb-email-double-optin')));
+            return;
+        }
+
+        $email = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
+        $otp_code = isset($_POST['otp_code']) ? sanitize_text_field($_POST['otp_code']) : '';
+
+        if (empty($email) || empty($otp_code)) {
+            wp_send_json_error(array('message' => __('Email and OTP code are required.', 'jezweb-email-double-optin')));
+            return;
+        }
+
+        $result = $this->verify_otp($email, $otp_code);
+
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error($result);
+        }
     }
 }

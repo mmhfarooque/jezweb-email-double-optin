@@ -63,21 +63,48 @@ class JEDO_Email {
 
     /**
      * Send verification email
+     *
+     * @param int    $user_id User ID (can be 0 for guest checkout).
+     * @param string $email   Email address.
+     * @param string $type    Verification type.
+     * @return bool|array True/false for link mode, array with token/otp for OTP mode
      */
     public function send_verification_email($user_id, $email, $type = 'registration') {
         $user = get_userdata($user_id);
-        if (!$user) {
+
+        // For guest checkout, create a minimal user object
+        if (!$user && $user_id === 0) {
+            $user = (object) array(
+                'ID' => 0,
+                'user_login' => $email,
+                'user_email' => $email,
+                'display_name' => $email,
+                'first_name' => '',
+                'last_name' => '',
+            );
+        } elseif (!$user) {
             return false;
         }
 
-        // Generate verification token
         $verification = JEDO_Verification::get_instance();
-        $token = $verification->generate_token($user_id, $email, $type);
-        $verification_url = $verification->get_verification_url($token);
+        $is_otp = JEDO_Verification::is_otp_enabled();
 
-        // Build email
-        $subject = $this->replace_placeholders(get_option('jedo_email_subject'), $user, $verification_url);
-        $message = $this->build_email_html($user, $verification_url);
+        if ($is_otp) {
+            // OTP mode - generate token with OTP code
+            $token_data = $verification->generate_otp_token($user_id, $email, $type);
+            $otp_code = $token_data['otp_code'];
+
+            // Build OTP email
+            $subject = $this->replace_placeholders(get_option('jedo_email_subject'), $user, '', $otp_code);
+            $message = $this->build_otp_email_html($user, $otp_code);
+        } else {
+            // Link mode - existing behavior
+            $token = $verification->generate_token($user_id, $email, $type);
+            $verification_url = $verification->get_verification_url($token);
+
+            $subject = $this->replace_placeholders(get_option('jedo_email_subject'), $user, $verification_url);
+            $message = $this->build_email_html($user, $verification_url);
+        }
 
         // Send email
         $headers = array(
@@ -98,6 +125,13 @@ class JEDO_Email {
 
         // Log result
         do_action('jedo_after_send_email', $sent, $email, $subject, $user_id, $type);
+
+        if ($is_otp) {
+            return array(
+                'sent' => $sent,
+                'token' => $token_data['token'],
+            );
+        }
 
         return $sent;
     }
@@ -186,10 +220,113 @@ class JEDO_Email {
     }
 
     /**
-     * Replace placeholders in text
+     * Build OTP email HTML
+     *
+     * @param object $user     User object.
+     * @param string $otp_code OTP code.
+     * @return string Email HTML.
      */
-    private function replace_placeholders($text, $user, $verification_url = '') {
+    private function build_otp_email_html($user, $otp_code) {
+        $heading = $this->replace_placeholders(get_option('jedo_email_heading'), $user, '', $otp_code);
+        $body = $this->replace_placeholders(get_option('jedo_email_body'), $user, '', $otp_code);
+        $footer = $this->replace_placeholders(get_option('jedo_email_footer'), $user, '', $otp_code);
+        $button_color = get_option('jedo_email_button_color', '#0073aa');
+        $expiry_minutes = absint(get_option('jedo_otp_expiry_minutes', 5));
+
+        // Convert line breaks to HTML
+        $body = nl2br(esc_html($body));
+
+        ob_start();
+        ?>
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title><?php echo esc_html($heading); ?></title>
+        </head>
+        <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif; background-color: #f5f5f5;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f5f5f5;">
+                <tr>
+                    <td style="padding: 40px 20px;">
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width: 600px; margin: 0 auto;">
+                            <!-- Header -->
+                            <tr>
+                                <td style="background-color: <?php echo esc_attr($button_color); ?>; padding: 30px 40px; text-align: center; border-radius: 8px 8px 0 0;">
+                                    <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">
+                                        <?php echo esc_html($heading); ?>
+                                    </h1>
+                                </td>
+                            </tr>
+                            <!-- Body -->
+                            <tr>
+                                <td style="background-color: #ffffff; padding: 40px;">
+                                    <div style="color: #333333; font-size: 16px; line-height: 1.6;">
+                                        <?php echo $body; ?>
+                                    </div>
+
+                                    <!-- OTP Code Display -->
+                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 30px 0;">
+                                        <tr>
+                                            <td style="text-align: center;">
+                                                <div style="background-color: #f8f9fa; border: 2px dashed <?php echo esc_attr($button_color); ?>; border-radius: 8px; padding: 25px; display: inline-block;">
+                                                    <p style="margin: 0 0 10px; color: #666666; font-size: 14px;">
+                                                        <?php esc_html_e('Your verification code is:', 'jezweb-email-double-optin'); ?>
+                                                    </p>
+                                                    <p style="margin: 0; font-size: 36px; font-weight: 700; letter-spacing: 8px; color: <?php echo esc_attr($button_color); ?>; font-family: 'Courier New', monospace;">
+                                                        <?php echo esc_html($otp_code); ?>
+                                                    </p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </table>
+
+                                    <!-- Expiry notice -->
+                                    <p style="color: #666666; font-size: 14px; text-align: center; margin-top: 20px;">
+                                        <strong><?php
+                                        printf(
+                                            /* translators: %d: number of minutes until OTP expires */
+                                            esc_html__('This code will expire in %d minutes.', 'jezweb-email-double-optin'),
+                                            $expiry_minutes
+                                        );
+                                        ?></strong>
+                                    </p>
+
+                                    <p style="color: #666666; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eeeeee;">
+                                        <?php esc_html_e('Enter this code on the verification page to complete your registration.', 'jezweb-email-double-optin'); ?>
+                                    </p>
+                                </td>
+                            </tr>
+                            <!-- Footer -->
+                            <tr>
+                                <td style="background-color: #f9f9f9; padding: 30px 40px; text-align: center; border-radius: 0 0 8px 8px; border-top: 1px solid #eeeeee;">
+                                    <p style="margin: 0; color: #999999; font-size: 13px; line-height: 1.5;">
+                                        <?php echo nl2br(esc_html($footer)); ?>
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
+        <?php
+        return ob_get_clean();
+    }
+
+    /**
+     * Replace placeholders in text
+     *
+     * @param string $text            Text with placeholders.
+     * @param object $user            User object.
+     * @param string $verification_url Verification URL (optional).
+     * @param string $otp_code        OTP code (optional).
+     * @return string
+     */
+    private function replace_placeholders($text, $user, $verification_url = '', $otp_code = '') {
         $expiry_hours = get_option('jedo_verification_expiry', 24);
+        $expiry_minutes = get_option('jedo_otp_expiry_minutes', 5);
 
         $replacements = array(
             '{user_name}' => $user->display_name ?: $user->user_login,
@@ -202,6 +339,8 @@ class JEDO_Email {
             '{admin_email}' => get_bloginfo('admin_email'),
             '{verification_url}' => $verification_url,
             '{expiry_hours}' => $expiry_hours,
+            '{otp_code}' => $otp_code,
+            '{expiry_minutes}' => $expiry_minutes,
         );
 
         return str_replace(array_keys($replacements), array_values($replacements), $text);
@@ -220,8 +359,10 @@ class JEDO_Email {
             '{site_name}' => __('Website name', 'jezweb-email-double-optin'),
             '{site_url}' => __('Website URL', 'jezweb-email-double-optin'),
             '{admin_email}' => __('Admin email address', 'jezweb-email-double-optin'),
-            '{verification_url}' => __('Verification link URL', 'jezweb-email-double-optin'),
+            '{verification_url}' => __('Verification link URL (link mode)', 'jezweb-email-double-optin'),
             '{expiry_hours}' => __('Hours until link expires', 'jezweb-email-double-optin'),
+            '{otp_code}' => __('One-Time Password code (OTP mode)', 'jezweb-email-double-optin'),
+            '{expiry_minutes}' => __('Minutes until OTP expires', 'jezweb-email-double-optin'),
         );
     }
 
@@ -241,10 +382,19 @@ class JEDO_Email {
             'last_name' => $current_user->last_name ?: 'User',
         );
 
-        $verification_url = home_url('/?token=test_token_12345');
+        $is_otp = JEDO_Verification::is_otp_enabled();
 
-        $subject = '[TEST] ' . $this->replace_placeholders(get_option('jedo_email_subject'), $test_user, $verification_url);
-        $message = $this->build_email_html($test_user, $verification_url);
+        if ($is_otp) {
+            // OTP mode - generate a sample OTP for testing
+            $test_otp = 'A1B2C3';
+            $subject = '[TEST] ' . $this->replace_placeholders(get_option('jedo_email_subject'), $test_user, '', $test_otp);
+            $message = $this->build_otp_email_html($test_user, $test_otp);
+        } else {
+            // Link mode
+            $verification_url = home_url('/?token=test_token_12345');
+            $subject = '[TEST] ' . $this->replace_placeholders(get_option('jedo_email_subject'), $test_user, $verification_url);
+            $message = $this->build_email_html($test_user, $verification_url);
+        }
 
         $headers = array(
             'Content-Type: text/html; charset=UTF-8',

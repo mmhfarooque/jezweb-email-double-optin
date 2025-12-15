@@ -20,11 +20,37 @@ class JEDO_Activator {
      */
     public static function activate() {
         self::create_tables();
+        self::maybe_upgrade_database();
         self::set_default_options();
         self::create_verification_page();
 
         // Flush rewrite rules
         flush_rewrite_rules();
+    }
+
+    /**
+     * Upgrade database schema for OTP support
+     */
+    public static function maybe_upgrade_database() {
+        global $wpdb;
+
+        $table_name = $wpdb->prefix . 'jedo_verification_tokens';
+        $db_version = get_option('jedo_db_version', '1.0.0');
+
+        // Upgrade to 1.1.0 - Add OTP columns
+        if (version_compare($db_version, '1.1.0', '<')) {
+            $columns = $wpdb->get_col("DESC {$table_name}", 0);
+
+            if (!in_array('otp_code', $columns)) {
+                $wpdb->query("ALTER TABLE {$table_name} ADD COLUMN otp_code VARCHAR(6) DEFAULT NULL AFTER token");
+            }
+
+            if (!in_array('otp_attempts', $columns)) {
+                $wpdb->query("ALTER TABLE {$table_name} ADD COLUMN otp_attempts INT DEFAULT 0 AFTER otp_code");
+            }
+
+            update_option('jedo_db_version', '1.1.0');
+        }
     }
 
     /**
@@ -97,6 +123,13 @@ class JEDO_Activator {
 
             // Advanced
             'email_method' => 'wordpress', // wordpress, smtp2go, fluentsmtp
+
+            // OTP Settings
+            'verification_method' => 'link', // 'link' or 'otp'
+            'otp_length' => '6', // '4' or '6'
+            'otp_type' => 'alphanumeric', // 'numeric' or 'alphanumeric'
+            'otp_expiry_minutes' => 5,
+            'otp_max_attempts' => 5,
         );
 
         foreach ($defaults as $key => $value) {

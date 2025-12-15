@@ -50,6 +50,14 @@
             }
         });
 
+        // Select dropdowns
+        $('.jedo-admin-wrap select').each(function() {
+            var name = $(this).attr('name');
+            if (name) {
+                settings[name] = $(this).val();
+            }
+        });
+
         // Textareas
         $('.jedo-admin-wrap textarea').each(function() {
             var name = $(this).attr('name');
@@ -66,7 +74,37 @@
             }
         });
 
+        // Radio buttons (toggle groups)
+        $('.jedo-admin-wrap input[type="radio"]:checked').each(function() {
+            var name = $(this).attr('name');
+            if (name) {
+                settings[name] = $(this).val();
+            }
+        });
+
         return settings;
+    }
+
+    // Toggle OTP settings visibility based on verification method
+    function initVerificationMethodToggle() {
+        var $methodSelect = $('select[name="jedo_verification_method"]');
+
+        function toggleOtpSettings() {
+            var isOtp = $methodSelect.val() === 'otp';
+            $('.jedo-otp-setting').toggle(isOtp);
+        }
+
+        $methodSelect.on('change', toggleOtpSettings);
+        toggleOtpSettings(); // Set initial state
+    }
+
+    // Initialize toggle button groups
+    function initToggleButtons() {
+        $('.jedo-toggle-btn input[type="radio"]').on('change', function() {
+            var $group = $(this).closest('.jedo-toggle-group');
+            $group.find('.jedo-toggle-btn').removeClass('active');
+            $(this).closest('.jedo-toggle-btn').addClass('active');
+        });
     }
 
     // Save settings
@@ -206,6 +244,8 @@
         initSaveSettings();
         initTestEmail();
         initColorPicker();
+        initVerificationMethodToggle();
+        initToggleButtons();
 
         // Load stats if starting on stats tab
         if ($('.jedo-tab[data-tab="stats"]').hasClass('active')) {
