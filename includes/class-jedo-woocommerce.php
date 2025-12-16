@@ -122,8 +122,9 @@ class JEDO_WooCommerce {
         // WooCommerce Blocks integration
         add_action('woocommerce_blocks_loaded', array($this, 'register_blocks_integration'));
 
-        // Add inline email verification script to checkout
-        add_action('wp_enqueue_scripts', array($this, 'enqueue_checkout_email_verification_script'));
+        // Add inline email verification script to checkout - DIRECT hooks for better page builder compatibility
+        // Register early via template_redirect (fires after template is determined but before output)
+        add_action('template_redirect', array($this, 'setup_checkout_verification_hooks'));
 
         // Handle checkout email verification link
         add_action('init', array($this, 'handle_checkout_email_verification'));
@@ -1242,43 +1243,80 @@ class JEDO_WooCommerce {
     }
 
     /**
-     * Enqueue inline email verification script for checkout
-     * This watches the email field and triggers verification when email is entered
+     * Setup checkout verification hooks - called from template_redirect for early registration
      */
-    public function enqueue_checkout_email_verification_script() {
-        // Don't run in admin
-        if (is_admin()) {
+    public function setup_checkout_verification_hooks() {
+        // Don't run in admin or AJAX requests
+        if (is_admin() || wp_doing_ajax()) {
             return;
         }
 
-        // Always enqueue on frontend - let JavaScript detect the checkout form
-        // This is more reliable than PHP detection with page builders
+        // Enqueue jQuery (needed for WooCommerce events)
         wp_enqueue_script('jquery');
 
-        // Output styles directly in head
+        // Output styles in head with multiple fallback hooks for page builder compatibility
         add_action('wp_head', array($this, 'output_email_verification_styles'), 99);
 
-        // Output JavaScript in footer
-        add_action('wp_footer', array($this, 'output_email_verification_script'), 99);
+        // Output JavaScript in footer - use multiple hooks for page builder compatibility
+        add_action('wp_footer', array($this, 'output_email_verification_script'), 5); // Early priority
+        add_action('wp_print_footer_scripts', array($this, 'output_email_verification_script_fallback'), 5);
     }
+
+    /**
+     * Legacy function - redirects to new setup method
+     * Kept for backward compatibility
+     */
+    public function enqueue_checkout_email_verification_script() {
+        // This function is no longer used but kept for compatibility
+        // The setup_checkout_verification_hooks() is now called from template_redirect
+    }
+
+    /**
+     * Track if script has been output (prevent duplicates)
+     */
+    private static $script_output = false;
 
     /**
      * Output email verification CSS styles
      */
     public function output_email_verification_styles() {
+        static $styles_output = false;
+        if ($styles_output) {
+            return;
+        }
+        $styles_output = true;
         echo '<style type="text/css">' . $this->get_email_verification_styles() . '</style>';
+    }
+
+    /**
+     * Fallback script output - only outputs if main method didn't
+     */
+    public function output_email_verification_script_fallback() {
+        if (self::$script_output) {
+            return; // Already output by primary method
+        }
+        $this->output_email_verification_script();
     }
 
     /**
      * Output the email verification JavaScript in footer
      */
     public function output_email_verification_script() {
+        // Prevent duplicate output
+        if (self::$script_output) {
+            return;
+        }
+        self::$script_output = true;
+
         // This is called from wp_footer, so checkout detection should work better here
         // But we'll add fallbacks just in case
         ?>
         <script type="text/javascript">
+        /* JEDO Email Verification Script v1.7.4 */
+        console.log('JEDO: Script loaded successfully');
         (function() {
             'use strict';
+            console.log('JEDO: IIFE executing...');
 
             var jedoVerification = {
                 ajaxUrl: '<?php echo esc_js(admin_url('admin-ajax.php')); ?>',
