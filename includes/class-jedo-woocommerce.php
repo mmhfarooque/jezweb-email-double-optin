@@ -2088,6 +2088,8 @@ class JEDO_WooCommerce {
         return "
         #jedo-email-verification-container {
             margin: 15px 0;
+            position: relative;
+            z-index: 200;
         }
         .jedo-email-verify-box {
             display: flex;
