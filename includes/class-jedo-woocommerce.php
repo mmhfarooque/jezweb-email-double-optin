@@ -1312,7 +1312,7 @@ class JEDO_WooCommerce {
         // But we'll add fallbacks just in case
         ?>
         <script type="text/javascript">
-        /* JEDO Email Verification Script v1.7.4 */
+        /* JEDO Email Verification Script v1.7.5 */
         console.log('JEDO: Script loaded successfully');
         (function() {
             'use strict';
@@ -1508,7 +1508,7 @@ class JEDO_WooCommerce {
 
                     for (var i = 0; i < selectors.length; i++) {
                         var field = document.querySelector(selectors[i]);
-                        if (field && self.isVisibleField(field)) {
+                        if (field && this.isVisibleField(field)) {
                             return field;
                         }
                     }
