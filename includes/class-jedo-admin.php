@@ -175,10 +175,6 @@ class JEDO_Admin {
                         <span class="dashicons dashicons-admin-generic"></span>
                         <?php esc_html_e('General', 'jezweb-email-double-optin'); ?>
                     </button>
-                    <button class="jedo-tab" data-tab="email">
-                        <span class="dashicons dashicons-email"></span>
-                        <?php esc_html_e('Email Template', 'jezweb-email-double-optin'); ?>
-                    </button>
                     <button class="jedo-tab" data-tab="messages">
                         <span class="dashicons dashicons-format-chat"></span>
                         <?php esc_html_e('Messages', 'jezweb-email-double-optin'); ?>
@@ -369,19 +365,34 @@ class JEDO_Admin {
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Email Template Tab -->
-                    <div class="jedo-tab-pane" id="tab-email">
+                        <!-- Email Template Section (merged from Email Template tab) -->
                         <div class="jedo-card">
                             <div class="jedo-card-header">
-                                <h2><?php esc_html_e('Email Content', 'jezweb-email-double-optin'); ?></h2>
+                                <h2><?php esc_html_e('Email Template', 'jezweb-email-double-optin'); ?></h2>
                                 <button type="button" class="jedo-btn jedo-btn-secondary" id="jedo-send-test">
                                     <span class="dashicons dashicons-email"></span>
                                     <?php esc_html_e('Send Test Email', 'jezweb-email-double-optin'); ?>
                                 </button>
                             </div>
                             <div class="jedo-card-body">
+                                <!-- Mode indicator -->
+                                <div class="jedo-info-box jedo-link-setting" style="<?php echo $settings['verification_method'] !== 'link' ? 'display: none;' : ''; ?>">
+                                    <span class="dashicons dashicons-admin-links"></span>
+                                    <div>
+                                        <strong><?php esc_html_e('Link Verification Mode', 'jezweb-email-double-optin'); ?></strong>
+                                        <p><?php esc_html_e('Email will contain a verification button/link that users click to verify.', 'jezweb-email-double-optin'); ?></p>
+                                    </div>
+                                </div>
+
+                                <div class="jedo-info-box jedo-otp-setting" style="<?php echo $settings['verification_method'] !== 'otp' ? 'display: none;' : ''; ?>; background: #e8f4e8; border-color: #4caf50;">
+                                    <span class="dashicons dashicons-lock" style="color: #4caf50;"></span>
+                                    <div>
+                                        <strong><?php esc_html_e('OTP Code Mode', 'jezweb-email-double-optin'); ?></strong>
+                                        <p><?php esc_html_e('Email will contain an OTP code that users enter on the checkout/registration page. The code is displayed prominently in the email.', 'jezweb-email-double-optin'); ?></p>
+                                    </div>
+                                </div>
+
                                 <div class="jedo-setting-row">
                                     <div class="jedo-setting-label">
                                         <label for="jedo_email_subject"><?php esc_html_e('Email Subject', 'jezweb-email-double-optin'); ?></label>
@@ -400,16 +411,19 @@ class JEDO_Admin {
                                     </div>
                                 </div>
 
-                                <div class="jedo-setting-row">
+                                <!-- Email Body - Only for Link mode -->
+                                <div class="jedo-setting-row jedo-link-setting" style="<?php echo $settings['verification_method'] !== 'link' ? 'display: none;' : ''; ?>">
                                     <div class="jedo-setting-label">
                                         <label for="jedo_email_body"><?php esc_html_e('Email Body', 'jezweb-email-double-optin'); ?></label>
+                                        <p class="jedo-setting-desc"><?php esc_html_e('Customize the email message. Use placeholders below.', 'jezweb-email-double-optin'); ?></p>
                                     </div>
                                     <div class="jedo-setting-control jedo-full-width">
-                                        <textarea id="jedo_email_body" name="jedo_email_body" class="jedo-textarea" rows="8"><?php echo esc_textarea($settings['email_body']); ?></textarea>
+                                        <textarea id="jedo_email_body" name="jedo_email_body" class="jedo-textarea" rows="6"><?php echo esc_textarea($settings['email_body']); ?></textarea>
                                     </div>
                                 </div>
 
-                                <div class="jedo-setting-row">
+                                <!-- Button Text - Only for Link mode -->
+                                <div class="jedo-setting-row jedo-link-setting" style="<?php echo $settings['verification_method'] !== 'link' ? 'display: none;' : ''; ?>">
                                     <div class="jedo-setting-label">
                                         <label for="jedo_email_button_text"><?php esc_html_e('Button Text', 'jezweb-email-double-optin'); ?></label>
                                     </div>
@@ -420,7 +434,9 @@ class JEDO_Admin {
 
                                 <div class="jedo-setting-row">
                                     <div class="jedo-setting-label">
-                                        <label for="jedo_email_button_color"><?php esc_html_e('Button Color', 'jezweb-email-double-optin'); ?></label>
+                                        <label for="jedo_email_button_color"><?php esc_html_e('Accent Color', 'jezweb-email-double-optin'); ?></label>
+                                        <p class="jedo-setting-desc jedo-link-setting" style="<?php echo $settings['verification_method'] !== 'link' ? 'display: none;' : ''; ?>"><?php esc_html_e('Color for the verification button.', 'jezweb-email-double-optin'); ?></p>
+                                        <p class="jedo-setting-desc jedo-otp-setting" style="<?php echo $settings['verification_method'] !== 'otp' ? 'display: none;' : ''; ?>"><?php esc_html_e('Color for the email header and OTP code display.', 'jezweb-email-double-optin'); ?></p>
                                     </div>
                                     <div class="jedo-setting-control">
                                         <input type="text" id="jedo_email_button_color" name="jedo_email_button_color" value="<?php echo esc_attr($settings['email_button_color']); ?>" class="jedo-color-picker">
@@ -432,20 +448,33 @@ class JEDO_Admin {
                                         <label for="jedo_email_footer"><?php esc_html_e('Email Footer', 'jezweb-email-double-optin'); ?></label>
                                     </div>
                                     <div class="jedo-setting-control jedo-full-width">
-                                        <textarea id="jedo_email_footer" name="jedo_email_footer" class="jedo-textarea" rows="3"><?php echo esc_textarea($settings['email_footer']); ?></textarea>
+                                        <textarea id="jedo_email_footer" name="jedo_email_footer" class="jedo-textarea" rows="2"><?php echo esc_textarea($settings['email_footer']); ?></textarea>
                                     </div>
                                 </div>
 
-                                <div class="jedo-placeholders-box">
-                                    <h4><?php esc_html_e('Available Placeholders', 'jezweb-email-double-optin'); ?></h4>
+                                <!-- Placeholders for Link mode -->
+                                <div class="jedo-placeholders-box jedo-link-setting" style="<?php echo $settings['verification_method'] !== 'link' ? 'display: none;' : ''; ?>">
+                                    <h4><?php esc_html_e('Available Placeholders (Link Mode)', 'jezweb-email-double-optin'); ?></h4>
                                     <div class="jedo-placeholders-grid">
-                                        <?php foreach (JEDO_Email::get_available_placeholders() as $placeholder => $description) : ?>
-                                        <div class="jedo-placeholder-item">
-                                            <code><?php echo esc_html($placeholder); ?></code>
-                                            <span><?php echo esc_html($description); ?></span>
-                                        </div>
-                                        <?php endforeach; ?>
+                                        <div class="jedo-placeholder-item"><code>{user_name}</code><span><?php esc_html_e('User display name', 'jezweb-email-double-optin'); ?></span></div>
+                                        <div class="jedo-placeholder-item"><code>{site_name}</code><span><?php esc_html_e('Website name', 'jezweb-email-double-optin'); ?></span></div>
+                                        <div class="jedo-placeholder-item"><code>{verification_url}</code><span><?php esc_html_e('Verification link URL', 'jezweb-email-double-optin'); ?></span></div>
+                                        <div class="jedo-placeholder-item"><code>{expiry_hours}</code><span><?php esc_html_e('Hours until link expires', 'jezweb-email-double-optin'); ?></span></div>
+                                        <div class="jedo-placeholder-item"><code>{admin_email}</code><span><?php esc_html_e('Admin email address', 'jezweb-email-double-optin'); ?></span></div>
+                                        <div class="jedo-placeholder-item"><code>{user_email}</code><span><?php esc_html_e('User email address', 'jezweb-email-double-optin'); ?></span></div>
                                     </div>
+                                </div>
+
+                                <!-- Placeholders for OTP mode -->
+                                <div class="jedo-placeholders-box jedo-otp-setting" style="<?php echo $settings['verification_method'] !== 'otp' ? 'display: none;' : ''; ?>">
+                                    <h4><?php esc_html_e('Available Placeholders (OTP Mode)', 'jezweb-email-double-optin'); ?></h4>
+                                    <div class="jedo-placeholders-grid">
+                                        <div class="jedo-placeholder-item"><code>{site_name}</code><span><?php esc_html_e('Website name', 'jezweb-email-double-optin'); ?></span></div>
+                                        <div class="jedo-placeholder-item"><code>{admin_email}</code><span><?php esc_html_e('Admin email address', 'jezweb-email-double-optin'); ?></span></div>
+                                    </div>
+                                    <p class="jedo-placeholder-note" style="margin-top: 10px; color: #666; font-style: italic;">
+                                        <?php esc_html_e('Note: OTP code and expiry time are automatically included in the email.', 'jezweb-email-double-optin'); ?>
+                                    </p>
                                 </div>
                             </div>
                         </div>

@@ -1312,7 +1312,7 @@ class JEDO_WooCommerce {
         // But we'll add fallbacks just in case
         ?>
         <script type="text/javascript">
-        /* JEDO Email Verification Script v1.7.6 */
+        /* JEDO Email Verification Script v1.7.7 */
         console.log('JEDO: Script loaded successfully');
         (function() {
             'use strict';

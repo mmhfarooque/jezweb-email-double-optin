@@ -85,33 +85,36 @@
         return settings;
     }
 
-    // Toggle OTP settings visibility based on verification method
+    // Toggle OTP/Link settings visibility based on verification method
     function initVerificationMethodToggle() {
         var $methodSelect = $('select[name="jedo_verification_method"]');
 
         console.log('JEDO Admin: Initializing verification method toggle');
         console.log('JEDO Admin: Found method select:', $methodSelect.length > 0);
 
-        function toggleOtpSettings() {
+        function toggleMethodSettings() {
             var selectedValue = $methodSelect.val();
             var isOtp = selectedValue === 'otp';
             console.log('JEDO Admin: Selected method:', selectedValue, 'Is OTP:', isOtp);
-            console.log('JEDO Admin: OTP settings found:', $('.jedo-otp-setting').length);
 
             if (isOtp) {
+                // Show OTP settings, hide Link settings
                 $('.jedo-otp-setting').slideDown(200);
+                $('.jedo-link-setting').slideUp(200);
             } else {
+                // Show Link settings, hide OTP settings
+                $('.jedo-link-setting').slideDown(200);
                 $('.jedo-otp-setting').slideUp(200);
             }
         }
 
         $methodSelect.on('change', function() {
             console.log('JEDO Admin: Dropdown changed to:', $(this).val());
-            toggleOtpSettings();
+            toggleMethodSettings();
         });
 
         // Set initial state
-        toggleOtpSettings();
+        toggleMethodSettings();
     }
 
     // Initialize toggle button groups
