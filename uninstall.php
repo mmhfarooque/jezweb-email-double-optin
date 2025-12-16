@@ -48,8 +48,13 @@ $table_name = $wpdb->prefix . 'jedo_verification_tokens';
 // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 $wpdb->query("DROP TABLE IF EXISTS `" . esc_sql($table_name) . "`");
 
-// Delete user meta
-$wpdb->query("DELETE FROM {$wpdb->usermeta} WHERE meta_key LIKE 'jedo_%'");
+// Delete user meta (using prepare for safety)
+$wpdb->query(
+    $wpdb->prepare(
+        "DELETE FROM {$wpdb->usermeta} WHERE meta_key LIKE %s",
+        $wpdb->esc_like('jedo_') . '%'
+    )
+);
 
 // Delete verification page
 $page_id = get_option('jedo_verification_page_id');

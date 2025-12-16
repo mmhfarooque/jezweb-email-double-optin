@@ -794,7 +794,9 @@ class JEDO_Admin {
             wp_send_json_error(array('message' => __('Permission denied.', 'jezweb-email-double-optin')));
         }
 
-        $settings = isset($_POST['settings']) ? $_POST['settings'] : array();
+        // Ensure settings is an array and properly handle the input
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above with check_ajax_referer
+        $settings = isset($_POST['settings']) && is_array($_POST['settings']) ? wp_unslash($_POST['settings']) : array();
 
         // Define allowed settings with their sanitization callbacks
         $allowed_settings = array(
