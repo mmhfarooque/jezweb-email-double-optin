@@ -1246,40 +1246,27 @@ class JEDO_WooCommerce {
      * This watches the email field and triggers verification when email is entered
      */
     public function enqueue_checkout_email_verification_script() {
-        // Check if we're on checkout page - multiple methods for compatibility
-        $is_checkout_page = false;
-
-        // Method 1: Standard WooCommerce check
-        if (function_exists('is_checkout') && is_checkout()) {
-            $is_checkout_page = true;
-        }
-
-        // Method 2: Check by page ID (works better with page builders)
-        if (!$is_checkout_page && function_exists('wc_get_page_id')) {
-            $checkout_page_id = wc_get_page_id('checkout');
-            if ($checkout_page_id && is_page($checkout_page_id)) {
-                $is_checkout_page = true;
-            }
-        }
-
-        // Method 3: Check URL for checkout (fallback for page builders)
-        if (!$is_checkout_page) {
-            $current_url = $_SERVER['REQUEST_URI'] ?? '';
-            if (strpos($current_url, 'checkout') !== false) {
-                $is_checkout_page = true;
-            }
-        }
-
-        if (!$is_checkout_page) {
+        // Don't run in admin
+        if (is_admin()) {
             return;
         }
 
-        // Add the inline styles
-        wp_add_inline_style('wp-block-library', $this->get_email_verification_styles());
-
-        // Add the JavaScript
+        // Always enqueue on frontend - let JavaScript detect the checkout form
+        // This is more reliable than PHP detection with page builders
         wp_enqueue_script('jquery');
+
+        // Output styles directly in head
+        add_action('wp_head', array($this, 'output_email_verification_styles'), 99);
+
+        // Output JavaScript in footer
         add_action('wp_footer', array($this, 'output_email_verification_script'), 99);
+    }
+
+    /**
+     * Output email verification CSS styles
+     */
+    public function output_email_verification_styles() {
+        echo '<style type="text/css">' . $this->get_email_verification_styles() . '</style>';
     }
 
     /**
@@ -1312,7 +1299,13 @@ class JEDO_WooCommerce {
                 init: function() {
                     var self = this;
 
-                    console.log('JEDO: Initializing email verification...');
+                    // First check if we're on a page with checkout forms
+                    if (!self.isCheckoutPage()) {
+                        console.log('JEDO: Not a checkout page, skipping initialization');
+                        return;
+                    }
+
+                    console.log('JEDO: Checkout page detected! Initializing email verification...');
                     console.log('JEDO: OTP Mode:', self.isOtpMode);
                     console.log('JEDO: OTP Length:', self.otpLength);
 
@@ -1330,6 +1323,35 @@ class JEDO_WooCommerce {
 
                     // Listen for common AJAX events from page builders
                     self.setupAjaxListeners();
+                },
+
+                isCheckoutPage: function() {
+                    // Check for WooCommerce checkout elements
+                    var checkoutIndicators = [
+                        'form.checkout',
+                        'form.woocommerce-checkout',
+                        '.woocommerce-checkout',
+                        '#billing_email',
+                        'input[name="billing_email"]',
+                        '.wc-block-checkout',
+                        '.wc-block-components-checkout-place-order-button',
+                        '.woocommerce-billing-fields'
+                    ];
+
+                    for (var i = 0; i < checkoutIndicators.length; i++) {
+                        if (document.querySelector(checkoutIndicators[i])) {
+                            console.log('JEDO: Found checkout indicator:', checkoutIndicators[i]);
+                            return true;
+                        }
+                    }
+
+                    // Also check URL
+                    if (window.location.href.indexOf('checkout') !== -1) {
+                        console.log('JEDO: URL contains checkout');
+                        return true;
+                    }
+
+                    return false;
                 },
 
                 setupMutationObserver: function() {
