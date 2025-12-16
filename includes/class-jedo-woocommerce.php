@@ -2624,14 +2624,77 @@ class JEDO_WooCommerce {
             return;
         }
 
-        $verification = JEDO_Verification::get_instance();
-        $result = $verification->verify_otp($email, $otp_code);
+        // First, check if there's a pending checkout verification in transient (for guest checkout)
+        $transient_key = 'jedo_pending_checkout_' . md5($email);
+        $pending_data = get_transient($transient_key);
 
-        if ($result['success']) {
-            wp_send_json_success($result);
-        } else {
-            wp_send_json_error($result);
+        if ($pending_data && isset($pending_data['otp_code'])) {
+            // Verify against transient OTP
+            $stored_otp = strtoupper($pending_data['otp_code']);
+
+            // Check max attempts
+            $max_attempts = absint(get_option('jedo_otp_max_attempts', 5));
+            $attempts = isset($pending_data['otp_attempts']) ? intval($pending_data['otp_attempts']) : 0;
+
+            if ($attempts >= $max_attempts) {
+                // Too many attempts - delete and require new code
+                delete_transient($transient_key);
+                wp_send_json_error(array(
+                    'message' => __('Too many incorrect attempts. Please request a new code.', 'jezweb-email-double-optin'),
+                    'error_code' => 'max_attempts'
+                ));
+                return;
+            }
+
+            if ($otp_code === $stored_otp) {
+                // OTP matches - mark as verified
+                $pending_data['verified'] = true;
+                $pending_data['verified_at'] = time();
+                set_transient($transient_key, $pending_data, HOUR_IN_SECONDS);
+
+                wp_send_json_success(array(
+                    'verified' => true,
+                    'message' => __('Email verified successfully!', 'jezweb-email-double-optin')
+                ));
+                return;
+            } else {
+                // Wrong OTP - increment attempts
+                $pending_data['otp_attempts'] = $attempts + 1;
+                $remaining = $max_attempts - $pending_data['otp_attempts'];
+                set_transient($transient_key, $pending_data, get_option('jedo_otp_expiry_minutes', 5) * MINUTE_IN_SECONDS);
+
+                wp_send_json_error(array(
+                    'message' => sprintf(
+                        /* translators: %d: remaining attempts */
+                        __('Invalid verification code. %d attempts remaining.', 'jezweb-email-double-optin'),
+                        $remaining
+                    ),
+                    'error_code' => 'invalid_otp',
+                    'remaining_attempts' => $remaining
+                ));
+                return;
+            }
         }
+
+        // No transient found - check for existing user in database
+        $existing_user = get_user_by('email', $email);
+        if ($existing_user) {
+            $verification = JEDO_Verification::get_instance();
+            $result = $verification->verify_otp($email, $otp_code);
+
+            if ($result['success']) {
+                wp_send_json_success($result);
+            } else {
+                wp_send_json_error($result);
+            }
+            return;
+        }
+
+        // No pending verification found
+        wp_send_json_error(array(
+            'message' => __('No pending verification found. Please request a new code.', 'jezweb-email-double-optin'),
+            'error_code' => 'no_pending'
+        ));
     }
 }
 
