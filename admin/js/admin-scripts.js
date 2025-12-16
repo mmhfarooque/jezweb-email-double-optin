@@ -89,13 +89,29 @@
     function initVerificationMethodToggle() {
         var $methodSelect = $('select[name="jedo_verification_method"]');
 
+        console.log('JEDO Admin: Initializing verification method toggle');
+        console.log('JEDO Admin: Found method select:', $methodSelect.length > 0);
+
         function toggleOtpSettings() {
-            var isOtp = $methodSelect.val() === 'otp';
-            $('.jedo-otp-setting').toggle(isOtp);
+            var selectedValue = $methodSelect.val();
+            var isOtp = selectedValue === 'otp';
+            console.log('JEDO Admin: Selected method:', selectedValue, 'Is OTP:', isOtp);
+            console.log('JEDO Admin: OTP settings found:', $('.jedo-otp-setting').length);
+
+            if (isOtp) {
+                $('.jedo-otp-setting').slideDown(200);
+            } else {
+                $('.jedo-otp-setting').slideUp(200);
+            }
         }
 
-        $methodSelect.on('change', toggleOtpSettings);
-        toggleOtpSettings(); // Set initial state
+        $methodSelect.on('change', function() {
+            console.log('JEDO Admin: Dropdown changed to:', $(this).val());
+            toggleOtpSettings();
+        });
+
+        // Set initial state
+        toggleOtpSettings();
     }
 
     // Initialize toggle button groups

@@ -1493,37 +1493,61 @@ class JEDO_WooCommerce {
                 attachEmailListener: function(emailField) {
                     var self = this;
 
+                    console.log('JEDO: Attaching listener to email field:', emailField.id || emailField.name);
+
                     // Prevent attaching multiple listeners
                     if (emailField.hasAttribute('data-jedo-attached')) {
+                        console.log('JEDO: Already attached, skipping');
                         return;
                     }
                     emailField.setAttribute('data-jedo-attached', 'true');
 
                     // Create verification container
                     self.createVerificationContainer(emailField);
+                    console.log('JEDO: Verification container created');
 
-                    // Listen for email changes
-                    emailField.addEventListener('blur', function() {
-                        self.handleEmailChange(this.value);
-                    });
+                    // Listen for email changes - using multiple event types for compatibility
+                    var handleBlur = function(e) {
+                        console.log('JEDO: Blur event triggered, value:', e.target.value);
+                        self.handleEmailChange(e.target.value);
+                    };
 
-                    emailField.addEventListener('change', function() {
-                        self.handleEmailChange(this.value);
-                    });
+                    var handleChange = function(e) {
+                        console.log('JEDO: Change event triggered, value:', e.target.value);
+                        self.handleEmailChange(e.target.value);
+                    };
+
+                    // Attach using both addEventListener and jQuery for max compatibility
+                    emailField.addEventListener('blur', handleBlur);
+                    emailField.addEventListener('change', handleChange);
+                    emailField.addEventListener('focusout', handleBlur);
+
+                    // jQuery fallback for page builders that might override native events
+                    if (typeof jQuery !== 'undefined') {
+                        jQuery(emailField).on('blur change focusout', function(e) {
+                            console.log('JEDO: jQuery event triggered:', e.type);
+                            self.handleEmailChange(this.value);
+                        });
+                    }
 
                     // Also listen to input for real-time validation on some builders
                     emailField.addEventListener('input', self.debounce(function() {
                         if (self.isValidEmail(this.value)) {
+                            console.log('JEDO: Input event (debounced) with valid email');
                             self.handleEmailChange(this.value);
                         }
                     }, 1000));
 
-                    // Check if email already has value
-                    if (emailField.value) {
-                        self.handleEmailChange(emailField.value);
+                    // Check if email already has value (user returning to checkout)
+                    if (emailField.value && self.isValidEmail(emailField.value)) {
+                        console.log('JEDO: Email field already has value:', emailField.value);
+                        setTimeout(function() {
+                            self.handleEmailChange(emailField.value);
+                        }, 500);
                     }
 
                     self.initialized = true;
+                    console.log('JEDO: Initialization complete');
                 },
 
                 debounce: function(func, wait) {
@@ -1540,6 +1564,7 @@ class JEDO_WooCommerce {
                 createVerificationContainer: function(emailField) {
                     // Check if container already exists
                     if (document.getElementById('jedo-email-verification-container')) {
+                        console.log('JEDO: Verification container already exists');
                         return;
                     }
 
@@ -1565,6 +1590,8 @@ class JEDO_WooCommerce {
                                 emailField.closest('p') ||
                                 emailField.parentNode;
 
+                    console.log('JEDO: Parent element for container:', parent ? parent.className : 'using parentNode');
+
                     var container = document.createElement('div');
                     container.id = 'jedo-email-verification-container';
                     container.className = 'jedo-email-verification-container';
@@ -1573,9 +1600,11 @@ class JEDO_WooCommerce {
                     // Insert after the parent element
                     if (parent && parent.parentNode) {
                         parent.parentNode.insertBefore(container, parent.nextSibling);
+                        console.log('JEDO: Container inserted after parent');
                     } else {
                         // Fallback: insert after the email field itself
                         emailField.parentNode.insertBefore(container, emailField.nextSibling);
+                        console.log('JEDO: Container inserted after email field (fallback)');
                     }
                 },
 
