@@ -1871,7 +1871,7 @@ class JEDO_WooCommerce {
                             '<?php echo esc_js(__('digit', 'jezweb-email-double-optin')); ?>' :
                             '<?php echo esc_js(__('character', 'jezweb-email-double-optin')); ?>';
                         var instructionText = '<?php echo esc_js(__('We sent a', 'jezweb-email-double-optin')); ?> ' +
-                            self.otpLength + '-' + codeType + ' <?php echo esc_js(__('code to your email. Enter it below:', 'jezweb-email-double-optin')); ?>';
+                            self.otpLength + '-' + codeType + ' <?php echo esc_js(__('code to', 'jezweb-email-double-optin')); ?> <strong>' + email + '</strong>. <?php echo esc_js(__('Enter it below:', 'jezweb-email-double-optin')); ?>';
 
                         container.innerHTML =
                             '<div class="jedo-email-verify-box jedo-pending jedo-otp-mode">' +
@@ -1931,7 +1931,7 @@ class JEDO_WooCommerce {
                                 '<div class="jedo-verify-icon">✉️</div>' +
                                 '<div class="jedo-verify-content">' +
                                     '<strong><?php echo esc_js(__('Verification Email Sent!', 'jezweb-email-double-optin')); ?></strong>' +
-                                    '<p><?php echo esc_js(__('We have sent a verification email to your inbox. Please click the link in the email to verify.', 'jezweb-email-double-optin')); ?></p>' +
+                                    '<p><?php echo esc_js(__('We have sent a verification email to', 'jezweb-email-double-optin')); ?> <strong>' + email + '</strong>. <?php echo esc_js(__('Please click the link in the email to verify.', 'jezweb-email-double-optin')); ?></p>' +
                                     '<p class="jedo-waiting"><span class="jedo-spinner"></span> <?php echo esc_js(__('Waiting for verification...', 'jezweb-email-double-optin')); ?></p>' +
                                     '<button type="button" class="jedo-resend-btn" id="jedo-resend-verification">' +
                                         '<?php echo esc_js(__('Resend Email', 'jezweb-email-double-optin')); ?>' +
