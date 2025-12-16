@@ -86,11 +86,31 @@
     max-width: 1200px;
 }
 
+/* Tabs wrapper */
+.jedo-tabs-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 25px;
+}
+
+.jedo-tabs-actions .jedo-btn-primary {
+    background: #1e3a5f;
+    color: #fff;
+    box-shadow: 0 2px 4px rgba(30, 58, 95, 0.2);
+}
+
+.jedo-tabs-actions .jedo-btn-primary:hover {
+    background: #2c5282;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(30, 58, 95, 0.3);
+}
+
 /* Tabs */
 .jedo-tabs {
     display: flex;
     gap: 5px;
-    margin-bottom: 25px;
     background: #fff;
     padding: 6px;
     border-radius: 10px;
@@ -661,6 +681,22 @@
         flex-direction: column;
         gap: 15px;
         text-align: center;
+    }
+
+    .jedo-tabs-wrapper {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 15px;
+    }
+
+    .jedo-tabs-actions {
+        order: -1;
+        text-align: center;
+    }
+
+    .jedo-tabs-actions .jedo-btn {
+        width: 100%;
+        justify-content: center;
     }
 
     .jedo-tabs {

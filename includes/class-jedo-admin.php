@@ -161,32 +161,34 @@ class JEDO_Admin {
                     <h1><?php esc_html_e('Jezweb Email Double Opt-in', 'jezweb-email-double-optin'); ?></h1>
                     <p class="jedo-version">v<?php echo esc_html(JEDO_VERSION); ?></p>
                 </div>
-                <div class="jedo-header-actions">
-                    <button type="button" class="jedo-btn jedo-btn-primary" id="jedo-save-settings">
-                        <span class="dashicons dashicons-saved"></span>
-                        <?php esc_html_e('Save Settings', 'jezweb-email-double-optin'); ?>
-                    </button>
-                </div>
             </div>
 
             <div class="jedo-admin-content">
-                <div class="jedo-tabs">
-                    <button class="jedo-tab active" data-tab="general">
-                        <span class="dashicons dashicons-admin-generic"></span>
-                        <?php esc_html_e('General', 'jezweb-email-double-optin'); ?>
-                    </button>
-                    <button class="jedo-tab" data-tab="messages">
-                        <span class="dashicons dashicons-format-chat"></span>
-                        <?php esc_html_e('Messages', 'jezweb-email-double-optin'); ?>
-                    </button>
-                    <button class="jedo-tab" data-tab="stats">
-                        <span class="dashicons dashicons-chart-bar"></span>
-                        <?php esc_html_e('Statistics', 'jezweb-email-double-optin'); ?>
-                    </button>
-                    <button class="jedo-tab" data-tab="system">
-                        <span class="dashicons dashicons-info-outline"></span>
-                        <?php esc_html_e('System Status', 'jezweb-email-double-optin'); ?>
-                    </button>
+                <div class="jedo-tabs-wrapper">
+                    <div class="jedo-tabs">
+                        <button class="jedo-tab active" data-tab="general">
+                            <span class="dashicons dashicons-admin-generic"></span>
+                            <?php esc_html_e('General', 'jezweb-email-double-optin'); ?>
+                        </button>
+                        <button class="jedo-tab" data-tab="messages">
+                            <span class="dashicons dashicons-format-chat"></span>
+                            <?php esc_html_e('Messages', 'jezweb-email-double-optin'); ?>
+                        </button>
+                        <button class="jedo-tab" data-tab="stats">
+                            <span class="dashicons dashicons-chart-bar"></span>
+                            <?php esc_html_e('Statistics', 'jezweb-email-double-optin'); ?>
+                        </button>
+                        <button class="jedo-tab" data-tab="system">
+                            <span class="dashicons dashicons-info-outline"></span>
+                            <?php esc_html_e('System Status', 'jezweb-email-double-optin'); ?>
+                        </button>
+                    </div>
+                    <div class="jedo-tabs-actions">
+                        <button type="button" class="jedo-btn jedo-btn-primary" id="jedo-save-settings">
+                            <span class="dashicons dashicons-saved"></span>
+                            <?php esc_html_e('Save Settings', 'jezweb-email-double-optin'); ?>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="jedo-tab-content">
