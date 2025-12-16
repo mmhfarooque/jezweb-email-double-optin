@@ -1312,7 +1312,7 @@ class JEDO_WooCommerce {
         // But we'll add fallbacks just in case
         ?>
         <script type="text/javascript">
-        /* JEDO Email Verification Script v1.7.5 */
+        /* JEDO Email Verification Script v1.7.6 */
         console.log('JEDO: Script loaded successfully');
         (function() {
             'use strict';
@@ -2310,39 +2310,68 @@ class JEDO_WooCommerce {
             }
 
             // User exists but not verified - send verification email
-            $token = JEDO_Email::get_instance()->send_verification_email($existing_user->ID, $email, 'checkout_existing');
+            $is_otp = JEDO_Verification::is_otp_enabled();
+            $result = JEDO_Email::get_instance()->send_verification_email($existing_user->ID, $email, 'checkout_existing');
+
+            // For OTP mode, result is array with 'sent' and 'token'
+            // For link mode, result is boolean
+            $token = is_array($result) ? $result['token'] : $result;
 
             wp_send_json_success(array(
                 'verified' => false,
                 'pending' => true,
                 'token' => $token,
-                'message' => __('Verification email sent.', 'jezweb-email-double-optin')
+                'is_otp' => $is_otp,
+                'message' => $is_otp
+                    ? __('Verification code sent to your email.', 'jezweb-email-double-optin')
+                    : __('Verification email sent.', 'jezweb-email-double-optin')
             ));
             return;
         }
 
         // New email - create pending verification without creating user yet
+        // Check if OTP mode is enabled
+        $is_otp = JEDO_Verification::is_otp_enabled();
+
         // Generate a unique token for this email
         $token = bin2hex(random_bytes(32));
 
-        // Store pending verification in transient (expires in 1 hour)
+        // Store pending verification in transient
         $pending_data = array(
             'email' => $email,
             'token' => $token,
             'created' => time(),
-            'verified' => false
+            'verified' => false,
+            'is_otp' => $is_otp
         );
 
-        set_transient('jedo_pending_checkout_' . md5($email), $pending_data, HOUR_IN_SECONDS);
+        // For OTP mode, generate and store OTP code
+        if ($is_otp) {
+            $otp_code = JEDO_Verification::generate_otp_code();
+            $pending_data['otp_code'] = $otp_code;
+            $pending_data['otp_attempts'] = 0;
+            $expiry_minutes = absint(get_option('jedo_otp_expiry_minutes', 5));
+            // Set shorter expiry for OTP
+            set_transient('jedo_pending_checkout_' . md5($email), $pending_data, $expiry_minutes * MINUTE_IN_SECONDS);
 
-        // Send verification email using our email class (without user)
-        $this->send_checkout_verification_email($email, $token);
+            // Send OTP email
+            $this->send_checkout_otp_email($email, $otp_code);
+        } else {
+            // Link mode - 1 hour expiry
+            set_transient('jedo_pending_checkout_' . md5($email), $pending_data, HOUR_IN_SECONDS);
+
+            // Send verification link email
+            $this->send_checkout_verification_email($email, $token);
+        }
 
         wp_send_json_success(array(
             'verified' => false,
             'pending' => true,
             'token' => $token,
-            'message' => __('Verification email sent.', 'jezweb-email-double-optin')
+            'is_otp' => $is_otp,
+            'message' => $is_otp
+                ? __('Verification code sent to your email.', 'jezweb-email-double-optin')
+                : __('Verification email sent.', 'jezweb-email-double-optin')
         ));
     }
 
@@ -2390,6 +2419,116 @@ class JEDO_WooCommerce {
                 </p>
                 <p style="font-size: 12px; color: #666;">' . esc_html($footer) . '</p>
             </div>
+        </body>
+        </html>';
+
+        // Send email
+        $headers = array(
+            'Content-Type: text/html; charset=UTF-8',
+            'From: ' . $site_name . ' <' . get_option('admin_email') . '>'
+        );
+
+        wp_mail($email, $subject, $message, $headers);
+    }
+
+    /**
+     * Send OTP verification email for checkout (without user account)
+     *
+     * @param string $email    Email address.
+     * @param string $otp_code OTP code.
+     */
+    private function send_checkout_otp_email($email, $otp_code) {
+        // Get email template settings
+        $subject = get_option('jedo_email_subject', __('Verify your email address', 'jezweb-email-double-optin'));
+        $heading = get_option('jedo_email_heading', __('Verify Your Email', 'jezweb-email-double-optin'));
+        $button_color = get_option('jedo_email_button_color', '#0073aa');
+        $footer = get_option('jedo_email_footer', __('If you did not request this verification, please ignore this email.', 'jezweb-email-double-optin'));
+        $expiry_minutes = absint(get_option('jedo_otp_expiry_minutes', 5));
+
+        // Replace placeholders
+        $site_name = get_bloginfo('name');
+        $admin_email = get_bloginfo('admin_email');
+        $subject = str_replace('{site_name}', $site_name, $subject);
+        $footer = str_replace(array('{site_name}', '{admin_email}'), array($site_name, $admin_email), $footer);
+
+        // Build OTP email HTML
+        $message = '
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>' . esc_html($subject) . '</title>
+        </head>
+        <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Oxygen-Sans, Ubuntu, Cantarell, \'Helvetica Neue\', sans-serif; background-color: #f5f5f5;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f5f5f5;">
+                <tr>
+                    <td style="padding: 40px 20px;">
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width: 600px; margin: 0 auto;">
+                            <!-- Header -->
+                            <tr>
+                                <td style="background-color: ' . esc_attr($button_color) . '; padding: 30px 40px; text-align: center; border-radius: 8px 8px 0 0;">
+                                    <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">
+                                        ' . esc_html($heading) . '
+                                    </h1>
+                                </td>
+                            </tr>
+                            <!-- Body -->
+                            <tr>
+                                <td style="background-color: #ffffff; padding: 40px;">
+                                    <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
+                                        ' . esc_html__('Hi', 'jezweb-email-double-optin') . ' ' . esc_html($email) . ',
+                                    </p>
+                                    <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
+                                        ' . sprintf(
+                                            /* translators: %s: site name */
+                                            esc_html__('Thank you for shopping at %s. To complete your checkout, please enter the verification code below.', 'jezweb-email-double-optin'),
+                                            esc_html($site_name)
+                                        ) . '
+                                    </p>
+
+                                    <!-- OTP Code Display -->
+                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 30px 0;">
+                                        <tr>
+                                            <td style="text-align: center;">
+                                                <div style="background-color: #f8f9fa; border: 2px dashed ' . esc_attr($button_color) . '; border-radius: 8px; padding: 25px; display: inline-block;">
+                                                    <p style="margin: 0 0 10px; color: #666666; font-size: 14px;">
+                                                        ' . esc_html__('Your verification code is:', 'jezweb-email-double-optin') . '
+                                                    </p>
+                                                    <p style="margin: 0; font-size: 36px; font-weight: 700; letter-spacing: 8px; color: ' . esc_attr($button_color) . '; font-family: \'Courier New\', monospace;">
+                                                        ' . esc_html($otp_code) . '
+                                                    </p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </table>
+
+                                    <!-- Expiry notice -->
+                                    <p style="color: #666666; font-size: 14px; text-align: center; margin-top: 20px;">
+                                        <strong>' . sprintf(
+                                            /* translators: %d: number of minutes until OTP expires */
+                                            esc_html__('This code will expire in %d minutes.', 'jezweb-email-double-optin'),
+                                            $expiry_minutes
+                                        ) . '</strong>
+                                    </p>
+
+                                    <p style="color: #666666; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eeeeee;">
+                                        ' . esc_html__('Enter this code on the checkout page to verify your email and complete your order.', 'jezweb-email-double-optin') . '
+                                    </p>
+                                </td>
+                            </tr>
+                            <!-- Footer -->
+                            <tr>
+                                <td style="background-color: #f9f9f9; padding: 30px 40px; text-align: center; border-radius: 0 0 8px 8px; border-top: 1px solid #eeeeee;">
+                                    <p style="margin: 0; color: #999999; font-size: 13px; line-height: 1.5;">
+                                        ' . nl2br(esc_html($footer)) . '
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
         </body>
         </html>';
 
